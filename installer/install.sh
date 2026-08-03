@@ -50,9 +50,7 @@ check() {
 
 check "MoonLoader (moonloader.asi)"      "$GTA_PATH/moonloader.asi"                  "https://blast.hk/moonloader/"
 check "mimgui"                           "$GTA_PATH/moonloader/lib/mimgui"           "https://github.com/THE-FYP/mimgui"
-check "dkjson"                           "$GTA_PATH/moonloader/lib/dkjson.lua"       "https://dkolf.de/dkjson-lua/"
 check "SAMemory"                         "$GTA_PATH/moonloader/lib/SAMemory"         "search blast.hk's MoonLoader library section for 'SAMemory'"
-check "lfs / luafilesystem"              "$GTA_PATH/moonloader/lib/lfs.dll"          "https://github.com/lunarmodules/luafilesystem (or a MoonLoader 'extra libraries' pack on blast.hk)"
 check "luasocket"                        "$GTA_PATH/moonloader/lib/luasocket"        "https://github.com/lunarmodules/luasocket (or a MoonLoader 'extra libraries' pack on blast.hk)"
 check "bass.lua (BASS FFI wrapper)"      "$GTA_PATH/moonloader/lib/bass.lua"         "search blast.hk's MoonLoader library section for a 'bass.lua' wrapper"
 check "bass.dll (BASS audio library)"    "$GTA_PATH/bass.dll"                        "https://www.un4seen.com/ (free for non-commercial use)"

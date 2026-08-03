@@ -47,9 +47,7 @@ function Check($Label, $Path, $Link) {
 
 Check "MoonLoader (moonloader.asi)"   (Join-Path $GtaPath "moonloader.asi")                  "https://blast.hk/moonloader/"
 Check "mimgui"                        (Join-Path $GtaPath "moonloader\lib\mimgui")           "https://github.com/THE-FYP/mimgui"
-Check "dkjson"                        (Join-Path $GtaPath "moonloader\lib\dkjson.lua")       "https://dkolf.de/dkjson-lua/"
 Check "SAMemory"                      (Join-Path $GtaPath "moonloader\lib\SAMemory")         "search blast.hk's MoonLoader library section for 'SAMemory'"
-Check "lfs / luafilesystem"           (Join-Path $GtaPath "moonloader\lib\lfs.dll")           "https://github.com/lunarmodules/luafilesystem (or a MoonLoader 'extra libraries' pack on blast.hk)"
 Check "luasocket"                     (Join-Path $GtaPath "moonloader\lib\luasocket")         "https://github.com/lunarmodules/luasocket (or a MoonLoader 'extra libraries' pack on blast.hk)"
 Check "bass.lua (BASS FFI wrapper)"   (Join-Path $GtaPath "moonloader\lib\bass.lua")          "search blast.hk's MoonLoader library section for a 'bass.lua' wrapper"
 Check "bass.dll (BASS audio library)" (Join-Path $GtaPath "bass.dll")                         "https://www.un4seen.com/ (free for non-commercial use)"

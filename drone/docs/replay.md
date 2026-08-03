@@ -42,9 +42,10 @@ no error surfaces, it just no-ops, so every subsequent `io.open(...,'wb')`
 failed with no clue why. MoonLoader ships native
 `doesDirectoryExist(path)`/`createDirectory(path)` functions — use
 `if not doesDirectoryExist(path) then createDirectory(path) end` for any
-"make sure this folder exists" need. Listing a directory's contents still
-has no dedicated native — `lfs.dir` (via the real compiled
-`moonloader/lib/lfs.dll`) is used for that.
+"make sure this folder exists" need. Listing a directory's contents uses
+the equally-native `findFirstFile`/`findNextFile`/`findClose` (the same
+Windows `FindFirstFile`-style natives `moonloader/lib/folder.lua` uses) —
+no external filesystem library needed for either.
 
 ## Format versioning
 

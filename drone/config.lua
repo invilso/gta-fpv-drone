@@ -1,6 +1,7 @@
 -- Config + drone profiles. See docs/physics.md for the tuning history behind
--- the profile numbers below.
-local json = require 'dkjson'
+-- the profile numbers below. Uses MoonLoader's own native decodeJson/
+-- encodeJson (no external JSON library needed -- same functions
+-- autologin.lua and lib/jsoncfg.lua already use directly).
 local Class = require 'class'
 
 local Config = Class('Config')
@@ -207,7 +208,7 @@ function Config:load()
     if not f then return end
     local data = f:read('*a')
     f:close()
-    local ok, parsed = pcall(json.decode, data)
+    local ok, parsed = pcall(decodeJson, data)
     if ok and type(parsed) == 'table' then
         self.data = defaultData()
         deepMerge(self.data, parsed)
@@ -225,7 +226,7 @@ function Config:save()
     for k, v in pairs(self.data) do
         if k ~= 'profile' then toSave[k] = v end
     end
-    f:write(json.encode(toSave, {indent = true}))
+    f:write(encodeJson(toSave))
     f:close()
 end
 

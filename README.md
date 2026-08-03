@@ -68,15 +68,15 @@ All keybinds and the cheat phrases themselves are rebindable from the menu.
 This is a MoonLoader script — it assumes you already have (or the
 installer will tell you exactly what to get):
 
-- [MoonLoader](https://blast.hk/moonloader/) itself
+- [MoonLoader](https://blast.hk/moonloader/) itself — config file I/O and
+  replay file listing use MoonLoader's own native `decodeJson`/`encodeJson`
+  and `findFirstFile`/`findNextFile`, no separate JSON or filesystem
+  library needed
 - [mimgui](https://github.com/THE-FYP/mimgui) — the settings menu
-- [dkjson](https://dkolf.de/dkjson-lua/) — config file I/O
 - SAMemory — direct memory access for the vehicle/camera matrix writes
   (search blast.hk's MoonLoader library section; no single canonical link
   found for this one)
-- `lfs`/`luasocket` — file listing (replay browser) and UDP (controller
-  bridge, replay/config); commonly bundled together in MoonLoader "extra
-  libraries" packs on blast.hk
+- `luasocket` — UDP (controller bridge, both scripts' receivers)
 - `bass.lua` + `bass.dll` — motor audio, via the
   [BASS audio library](https://www.un4seen.com/) (free for non-commercial use)
 - Python 3 + [`pysdl2`](https://pypi.org/project/PySDL2/) — for the

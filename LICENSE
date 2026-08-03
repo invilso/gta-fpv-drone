@@ -24,6 +24,6 @@ SOFTWARE.
 
 This license covers this project's own code (drone.lua, drone/*.lua,
 drone/bridge/controllerd.py, installer scripts). It does not cover
-third-party dependencies (MoonLoader, mimgui, dkjson, SAMemory, lfs,
-luasocket, bass — see README.md for links) or the bundled Inter font
-(SIL Open Font License 1.1, see drone/resources/Inter-OFL.txt).
+third-party dependencies (MoonLoader, mimgui, SAMemory, luasocket, bass —
+see README.md for links) or the bundled Inter font (SIL Open Font License
+1.1, see drone/resources/Inter-OFL.txt).

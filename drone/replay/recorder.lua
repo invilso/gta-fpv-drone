@@ -68,7 +68,6 @@ local function scanKind(findFn, getCoordsFn, getHeadingFn, getModelFn, kind, n, 
 end
 
 local REPLAY_DIR = getWorkingDirectory() .. '\\replay'
-local ok_lfs, lfs = pcall(require, 'lfs')
 
 local function ensureReplayDir()
     if not doesDirectoryExist(REPLAY_DIR) then
@@ -211,15 +210,18 @@ function Recorder:save()
     return true, name
 end
 
+-- MoonLoader's own native findFirstFile/findNextFile/findClose (the same
+-- Windows FindFirstFile-style natives lib/folder.lua uses) -- no external
+-- filesystem library needed.
 function Recorder.listFiles()
     local files = {}
-    if ok_lfs and lfs then
-        local ok, iter, dirObj = pcall(lfs.dir, REPLAY_DIR)
-        if ok and iter then
-            for name in iter, dirObj do
-                if name:match('%.drpl$') then files[#files + 1] = name end
-            end
+    local ok, search, name = pcall(findFirstFile, REPLAY_DIR .. '\\*.drpl')
+    if ok and search then
+        while name do
+            files[#files + 1] = name
+            name = findNextFile(search)
         end
+        findClose(search)
     end
     -- Filenames are flight_YYYYMMDD_HHMMSS.drpl -- lexical sort is
     -- chronological, descending so the newest flight is on top.
