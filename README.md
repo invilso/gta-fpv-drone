@@ -84,7 +84,7 @@ installer will tell you exactly what to get):
 - [`uv`](https://docs.astral.sh/uv/getting-started/installation/) — runs
   the controller bridge daemon (`drone/bridge/controllerd.py`); its one
   Python dependency (`pysdl2`) is declared inline and installed
-  automatically on first run, no separate pip step
+  automatically on first run
 
 ## How it's built
 

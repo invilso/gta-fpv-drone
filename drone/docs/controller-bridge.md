@@ -69,8 +69,9 @@ packet.
 
 ## Files
 
-- `bridge/controllerd.py` (+ `.sh`/`.service`) — the daemon. Needs
-  `pysdl2` (`pip install pysdl2`).
+- `bridge/controllerd.py` (+ `.sh`/`.service`) — the daemon. Declares
+  `pysdl2` as an inline dependency (PEP 723), run via `uv run` and it
+  installs automatically.
 - `protocol.lua` — v2 parser (used only by `drone.lua`; `tx12.lua` has its
   own separate v1 parser).
 - `net.lua` — `Receiver`, device tracking + selection.

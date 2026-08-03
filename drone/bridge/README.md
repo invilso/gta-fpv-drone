@@ -12,7 +12,7 @@ Reads via **SDL2** (`pysdl2`), so any joystick/gamepad is recognized the
 same way, and the daemon runs on both Linux and Windows. Run via
 [`uv`](https://docs.astral.sh/uv/getting-started/installation/) — the
 dependency is declared inline in `controllerd.py` and installed
-automatically on first run, no manual pip/venv setup. See
+automatically on first run. See
 [`../docs/controller-bridge.md`](../docs/controller-bridge.md) for the wire
 format and why two protocols are sent at once.
 

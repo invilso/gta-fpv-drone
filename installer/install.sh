@@ -93,8 +93,7 @@ ok "Copied drone.lua into $DEST_LUA"
 say ""
 say "--- Controller bridge (uv) ---"
 say "The bridge (controllerd.py) declares its own dependency (pysdl2) inline"
-say "and runs via 'uv run' -- uv creates an isolated environment and installs"
-say "it automatically on first run, no manual pip/venv steps needed."
+say "and runs via 'uv run', which installs it automatically on first run."
 
 if ! command -v uv >/dev/null 2>&1; then
     warn "uv not found."
