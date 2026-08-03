@@ -47,8 +47,10 @@ controller bridge if you chose manual startup.
 
 If you'd rather not use the installer: copy `drone.lua` and the `drone/`
 folder into `<your GTA SA folder>/moonloader/`, then run
-`drone/bridge/controllerd.py` (needs Python 3 + `pip install pysdl2`)
-whenever you want to fly. See [`drone/bridge/README.md`](drone/bridge/README.md).
+`uv run drone/bridge/controllerd.py` ([get uv](https://docs.astral.sh/uv/getting-started/installation/)
+if you don't have it — it installs the bridge's one dependency
+automatically on first run) whenever you want to fly. See
+[`drone/bridge/README.md`](drone/bridge/README.md).
 
 ## Default controls
 
@@ -79,8 +81,10 @@ installer will tell you exactly what to get):
 - `luasocket` — UDP (controller bridge, both scripts' receivers)
 - `bass.lua` + `bass.dll` — motor audio, via the
   [BASS audio library](https://www.un4seen.com/) (free for non-commercial use)
-- Python 3 + [`pysdl2`](https://pypi.org/project/PySDL2/) — for the
-  controller bridge daemon (`drone/bridge/controllerd.py`)
+- [`uv`](https://docs.astral.sh/uv/getting-started/installation/) — runs
+  the controller bridge daemon (`drone/bridge/controllerd.py`); its one
+  Python dependency (`pysdl2`) is declared inline and installed
+  automatically on first run, no separate pip step
 
 ## How it's built
 

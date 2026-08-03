@@ -2,7 +2,9 @@
 Description=Generic joystick/gamepad bridge for GTA SA (moonloader/tx12.lua + moonloader/drone.lua)
 
 [Service]
-ExecStart=/usr/bin/python3 /home/invilso/Games/Gambit_GTA/moonloader/drone/bridge/controllerd.py
+# Rewritten by installer/install.sh to the real uv binary + install path --
+# this default is only a placeholder for manual setup.
+ExecStart=uv run /path/to/moonloader/drone/bridge/controllerd.py
 Restart=always
 RestartSec=2
 

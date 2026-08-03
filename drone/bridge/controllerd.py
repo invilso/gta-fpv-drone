@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.9"
+# dependencies = ["pysdl2"]
+# ///
 """controllerd -- generic joystick/gamepad/RC-transmitter -> UDP bridge for
 GTA SA MoonLoader scripts (moonloader/tx12.lua and moonloader/drone.lua).
 

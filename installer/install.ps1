@@ -89,47 +89,53 @@ if ($Mode -eq "link") {
 }
 Ok "Copied drone.lua into $DestLua"
 
-# --- 4. Python + pysdl2 -----------------------------------------------------
+# --- 4. uv (runs the controller bridge, auto-installs its one dependency) --
 Say ""
-Say "--- Controller bridge (Python) ---"
-$Py = $null
-foreach ($cand in @("py -3", "python", "python3")) {
-    $parts = $cand -split ' '
-    $cmd = Get-Command $parts[0] -ErrorAction SilentlyContinue
-    if ($cmd) { $Py = $cand; break }
-}
+Say "--- Controller bridge (uv) ---"
+Say "The bridge (controllerd.py) declares its own dependency (pysdl2) inline"
+Say "and runs via 'uv run' -- uv creates an isolated environment and installs"
+Say "it automatically on first run, no manual pip/venv steps needed."
 
-if (-not $Py) {
-    Err "Python 3 not found. Install it from python.org, then: pip install pysdl2"
-} else {
-    $ver = Invoke-Expression "$Py --version" 2>&1
-    Ok "Found Python: $ver"
-    Invoke-Expression "$Py -c `"import sdl2`"" 2>$null
-    if ($LASTEXITCODE -eq 0) {
-        Ok "pysdl2 is installed."
-    } else {
-        Warn "pysdl2 is NOT installed. Run this:"
-        Say "  $Py -m pip install pysdl2"
+if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+    Warn "uv not found."
+    $InstallUv = Read-Host "Install it now? [Y/n]"
+    if ($InstallUv -ne "n" -and $InstallUv -ne "N") {
+        Invoke-Expression (Invoke-RestMethod "https://astral.sh/uv/install.ps1")
+        # The official installer updates the user PATH registry value, which
+        # this already-running session won't see until restart -- resolve it
+        # directly for the rest of this script instead.
+        if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+            $UvBin = Join-Path $env:USERPROFILE ".local\bin"
+            if (Test-Path (Join-Path $UvBin "uv.exe")) { $env:Path = "$UvBin;$env:Path" }
+        }
     }
 }
 
+if (Get-Command uv -ErrorAction SilentlyContinue) {
+    Ok "Found uv: $(uv --version 2>&1)"
+} else {
+    Err "uv still not found -- install it manually: https://docs.astral.sh/uv/getting-started/installation/"
+    Err "(or install Python 3 + 'pip install pysdl2' yourself and run controllerd.py with plain python instead)"
+}
+
 $BridgePy = Join-Path $DestDir "bridge\controllerd.py"
+$RunCmd = "uv run `"$BridgePy`""
 
 # --- 5. Auto-start or manual -------------------------------------------------
 Say ""
 Say "--- Controller bridge startup ---"
 Say "The bridge must be running whenever you want to fly the drone. The exact command to run it manually:"
 Say ""
-Say "  $Py `"$BridgePy`""
+Say "  $RunCmd"
 Say ""
 $AutoStart = Read-Host "Set it up to start automatically when you log in? [y/N]"
 if ($AutoStart -eq "y" -or $AutoStart -eq "Y") {
     $StartupDir = [Environment]::GetFolderPath("Startup")
     $BatPath = Join-Path $StartupDir "gta-fpv-drone-bridge.bat"
-    "@echo off`r`nstart `"`" $Py `"$BridgePy`"" | Out-File -FilePath $BatPath -Encoding ascii
+    "@echo off`r`nstart `"`" uv run `"$BridgePy`"" | Out-File -FilePath $BatPath -Encoding ascii
     Ok "Created $BatPath -- the bridge will start next time you log in."
     Say "To start it right now too:"
-    Say "  $Py `"$BridgePy`""
+    Say "  $RunCmd"
 } else {
     Say "Skipped -- run the command above yourself whenever you want to fly."
 }
@@ -138,5 +144,5 @@ if ($AutoStart -eq "y" -or $AutoStart -eq "Y") {
 Say ""
 Say "=== Done ==="
 Say "Installed to: $DestLua and $DestDir"
-Say "Manual bridge command: $Py `"$BridgePy`""
+Say "Manual bridge command: $RunCmd"
 Say "In-game: type DRONE to spawn (throttle near zero to arm), CFGD for settings. See README.md for default keybinds."

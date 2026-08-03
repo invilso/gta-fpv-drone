@@ -89,40 +89,50 @@ else
 fi
 ok "Copied drone.lua into $DEST_LUA"
 
-# --- 4. Python + pysdl2 ---------------------------------------------------
+# --- 4. uv (runs the controller bridge, auto-installs its one dependency) --
 say ""
-say "--- Controller bridge (Python) ---"
-PY=""
-for cand in python3 python; do
-    if command -v "$cand" >/dev/null 2>&1; then PY="$cand"; break; fi
-done
+say "--- Controller bridge (uv) ---"
+say "The bridge (controllerd.py) declares its own dependency (pysdl2) inline"
+say "and runs via 'uv run' -- uv creates an isolated environment and installs"
+say "it automatically on first run, no manual pip/venv steps needed."
 
-if [ -z "$PY" ]; then
-    err "Python 3 not found. Install it, then: pip install pysdl2"
-else
-    ok "Found Python: $($PY --version 2>&1)"
-    if "$PY" -c "import sdl2" >/dev/null 2>&1; then
-        ok "pysdl2 is installed."
-    else
-        warn "pysdl2 is NOT installed. Run this:"
-        say "  $PY -m pip install pysdl2"
+if ! command -v uv >/dev/null 2>&1; then
+    warn "uv not found."
+    read -rp "Install it now? [Y/n] " INSTALL_UV
+    if [ "$INSTALL_UV" != "n" ] && [ "$INSTALL_UV" != "N" ]; then
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        # The official installer adds ~/.local/bin to PATH via shell rc files,
+        # which a running script's current shell won't pick up -- resolve it
+        # directly for the rest of this script instead of re-execing.
+        if ! command -v uv >/dev/null 2>&1 && [ -x "$HOME/.local/bin/uv" ]; then
+            export PATH="$HOME/.local/bin:$PATH"
+        fi
     fi
 fi
 
+if command -v uv >/dev/null 2>&1; then
+    ok "Found uv: $(uv --version 2>&1)"
+else
+    err "uv still not found -- install it manually: https://docs.astral.sh/uv/getting-started/installation/"
+    err "(or install Python 3 + 'pip install pysdl2' yourself and run controllerd.py with plain python3 instead)"
+fi
+
 BRIDGE_PY="$DEST_DIR/bridge/controllerd.py"
+RUN_CMD="uv run \"$BRIDGE_PY\""
 
 # --- 5. Auto-start or manual ------------------------------------------------
 say ""
 say "--- Controller bridge startup ---"
 say "The bridge must be running whenever you want to fly the drone. The exact command to run it manually:"
 say ""
-say "  $PY \"$BRIDGE_PY\""
+say "  $RUN_CMD"
 say ""
 read -rp "Set it up to start automatically via systemd --user? [y/N] " AUTOSTART
 if [ "$AUTOSTART" = "y" ] || [ "$AUTOSTART" = "Y" ]; then
     UNIT_DIR="$HOME/.config/systemd/user"
     mkdir -p "$UNIT_DIR"
-    sed "s#ExecStart=.*#ExecStart=$PY $BRIDGE_PY#" "$DEST_DIR/bridge/controllerd.service" > "$UNIT_DIR/controllerd.service"
+    UV_BIN="$(command -v uv)"
+    sed "s#ExecStart=.*#ExecStart=$UV_BIN run $BRIDGE_PY#" "$DEST_DIR/bridge/controllerd.service" > "$UNIT_DIR/controllerd.service"
     systemctl --user daemon-reload
     systemctl --user enable --now controllerd.service
     ok "Installed and started controllerd.service (systemctl --user status controllerd)"
@@ -134,5 +144,5 @@ fi
 say ""
 say "=== Done ==="
 say "Installed to: $DEST_LUA and $DEST_DIR"
-say "Manual bridge command: $PY \"$BRIDGE_PY\""
+say "Manual bridge command: $RUN_CMD"
 say "In-game: type DRONE to spawn (throttle near zero to arm), CFGD for settings. See README.md for default keybinds."

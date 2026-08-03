@@ -9,14 +9,17 @@ Controller (USB/BT) → controllerd.py (SDL2, cross-platform) → UDP 127.0.0.1:
 ```
 
 Reads via **SDL2** (`pysdl2`), so any joystick/gamepad is recognized the
-same way, and the daemon runs on both Linux and Windows. See
+same way, and the daemon runs on both Linux and Windows. Run via
+[`uv`](https://docs.astral.sh/uv/getting-started/installation/) — the
+dependency is declared inline in `controllerd.py` and installed
+automatically on first run, no manual pip/venv setup. See
 [`../docs/controller-bridge.md`](../docs/controller-bridge.md) for the wire
 format and why two protocols are sent at once.
 
 ## Quick start
 
 1. Plug in a controller (USB or Bluetooth).
-2. Run the daemon: `./controllerd.sh` (or `python3 controllerd.py --debug`
+2. Run the daemon: `./controllerd.sh` (or `uv run controllerd.py --debug`
    to see live axis values in the console).
 3. Launch the game. `moonloader/tx12.lua` (vehicle control) and
    `moonloader/drone.lua` (FPV drone) pick up input independently, each on
@@ -37,7 +40,7 @@ journalctl --user -u controllerd -f     # logs
 ## Daemon options
 
 ```
-python3 controllerd.py [--ports 42013] [--legacy-ports 42012] [--rate 100] [--debug]
+uv run controllerd.py [--ports 42013] [--legacy-ports 42012] [--rate 100] [--debug]
 ```
 
 - `--ports` — where to send the multi-device protocol, for `drone.lua`.
@@ -45,7 +48,7 @@ python3 controllerd.py [--ports 42013] [--legacy-ports 42012] [--rate 100] [--de
 
 ## Troubleshooting
 
-- **Does the daemon see the device?** `python3 controllerd.py --debug` —
+- **Does the daemon see the device?** `uv run controllerd.py --debug` —
   axis values should change as you move the sticks.
 - **Are packets arriving?** `socat -u udp-recv:42012 - | xxd | head` (for
   `tx12.lua`) or `42013` (for the drone); stop the Lua script/game first,
@@ -55,8 +58,8 @@ python3 controllerd.py [--ports 42013] [--legacy-ports 42012] [--rate 100] [--de
 
 ## Files
 
-- `controllerd.py` — the daemon (Python, needs `pysdl2`; the `libSDL2`
-  runtime library, no compilation required)
+- `controllerd.py` — the daemon (Python; declares `pysdl2` as an inline
+  dependency, run via `uv` and it's installed automatically)
 - `controllerd.sh` — manual launcher
 - `controllerd.service` — systemd `--user` unit
 - `../protocol.lua`, `../net.lua`, `../ui.lua` — receive + device selection on the `drone.lua` side
