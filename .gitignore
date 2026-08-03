@@ -1,0 +1,11 @@
+# Generated at runtime, not part of the source
+config/*.json
+replay/*.drpl
+
+# Python
+__pycache__/
+*.pyc
+
+# OS/editor cruft
+.DS_Store
+Thumbs.db
