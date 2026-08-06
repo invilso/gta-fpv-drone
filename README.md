@@ -5,6 +5,8 @@ quadcopter, freeze your character in place, and fly it FPV-style with real
 flight physics, flown from **any connected controller** (RC transmitter,
 DualSense, Xbox pad, generic joystick). Works in both singleplayer and SA-MP.
 
+![The settings menu and the Circuit OSD style, side by side](screenshots/hero.png)
+
 ## Features
 
 - **Real flight physics** — thrust, gravity, anisotropic drag, motor spool

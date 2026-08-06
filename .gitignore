@@ -1,6 +1,7 @@
 # Generated at runtime, not part of the source
 config/*.json
 replay/*.drpl
+drone/temp_folder/
 
 # Python
 __pycache__/

@@ -1,0 +1,41 @@
+#!/bin/sh
+# Keeps drone/VERSION pointed at a real, just-made commit hash, as its own
+# dedicated commit on top -- zero manual steps, and real work commits never
+# carry a VERSION diff mixed into them.
+#
+# A commit can't contain its own hash (the hash is computed FROM the
+# commit's contents), so this runs AFTER the real commit exists, reads its
+# now-known hash, and makes a small follow-up commit that touches only
+# drone/VERSION. That follow-up commit is itself one commit behind by the
+# same unavoidable logic -- irrelevant for update_check.lua's purpose (a
+# "you're behind, go update" courtesy notice, not exact version tracking).
+#
+# Loop guard: a post-commit hook fires for EVERY commit, including the one
+# this hook itself creates -- without the marker-message check below, each
+# stamp commit would trigger another stamp commit, forever.
+#
+# Enabled repo-wide via: git config core.hooksPath .githooks
+
+STAMP_PREFIX="chore: stamp version"
+
+msg=$(git log -1 --pretty=%s)
+case "$msg" in
+    "$STAMP_PREFIX"*) exit 0 ;;  # this commit IS a stamp commit -- stop here
+esac
+
+hash=$(git rev-parse --short HEAD)
+current=$(cat drone/VERSION 2>/dev/null || echo "")
+if [ "$hash" = "$current" ]; then
+    exit 0  # already accurate (e.g. hook re-run without a new commit)
+fi
+
+echo "$hash" > drone/VERSION
+git add drone/VERSION
+git commit --quiet -m "$STAMP_PREFIX $hash"
+echo "[post-commit] stamped drone/VERSION -> $hash"
+
+if git push --quiet 2>/tmp/gta-fpv-drone-push-error.log; then
+    echo "[post-commit] pushed"
+else
+    echo "[post-commit] push failed (see /tmp/gta-fpv-drone-push-error.log) -- push manually: git push"
+fi
