@@ -120,3 +120,4 @@ This project's own code is MIT — see [`LICENSE`](LICENSE). The bundled
 Inter font is SIL Open Font License 1.1 — see
 [`drone/resources/Inter-OFL.txt`](drone/resources/Inter-OFL.txt). Third-party
 MoonLoader libraries listed above are not bundled and keep their own licenses.
+
