@@ -28,6 +28,30 @@ local INTER_FONT_URL = 'https://raw.githubusercontent.com/google/fonts/main/ofl/
 local rendererReady = false
 local fontApplied = false
 
+-- mimgui (and the older imgui.lua other scripts use) hard-asserts that the
+-- Windows fonts folder contains trebucbd.ttf, then loads it as the default
+-- font. Real Windows always has it; fresh Wine/Proton prefixes don't, and
+-- the failed assert kills every imgui-based script in the game. If it's
+-- missing, plant the bundled Inter.ttf under that filename -- mimgui loads
+-- whatever bytes live at that path, so it renders Inter as its default and
+-- never knows the difference. Runs at script-load time, which is before
+-- mimgui's lazy renderer init fires on the first rendered frame.
+local function plantFallbackDefaultFont()
+    local target = getFolderPath(0x14) .. '\\trebucbd.ttf'
+    if doesFileExist(target) then return end
+    if not doesFileExist(INTER_FONT_PATH) then return end -- nothing to plant -- mimgui's own assert will report the problem
+    local src = io.open(INTER_FONT_PATH, 'rb')
+    if not src then return end
+    local data = src:read('*a')
+    src:close()
+    local dst = io.open(target, 'wb')
+    if not dst then return end -- fonts dir not writable -- mimgui's own assert will report the problem
+    dst:write(data)
+    dst:close()
+    print('fonts folder has no trebucbd.ttf (fresh Wine/Proton prefix?) -- planted the bundled Inter.ttf there so mimgui can start')
+end
+plantFallbackDefaultFont()
+
 local function applyInterFont()
     if fontApplied or not rendererReady then return end
     if not doesFileExist(INTER_FONT_PATH) then return end

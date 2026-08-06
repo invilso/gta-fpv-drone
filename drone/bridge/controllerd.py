@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.9"
-# dependencies = ["pysdl2"]
+# dependencies = ["pysdl2", "pysdl2-dll"]
 # ///
+# pysdl2-dll bundles the SDL2 binaries themselves -- without it, Windows and
+# macOS machines with no system-wide SDL2 fail at import time.
 """controllerd -- generic joystick/gamepad/RC-transmitter -> UDP bridge for
 GTA SA MoonLoader scripts (moonloader/tx12.lua and moonloader/drone.lua).
 
@@ -26,7 +28,13 @@ Two UDP outputs, both little-endian:
     24     4    buttons uint32, bit i = SDL button index i
 
   v2 (new) -- one packet PER connected device, tagged with a small device id
-  and name, sent to --ports (default 42013, consumed by moonloader/drone.lua):
+  and name, streamed to every SUBSCRIBER (consumed by moonloader/drone.lua).
+  The daemon binds one well-known port (--port, default 42013); a consumer
+  binds an ephemeral port, sends the 5-byte magic b"TXSUB" to the daemon at
+  least every ~3 s, and receives the stream back on its own port. Any number
+  of game instances can subscribe at once -- only the daemon occupies a
+  fixed port. Subscribers not heard from for SUBSCRIBER_TIMEOUT are dropped.
+  v2 packet layout:
     offset size field
     0      2    magic   "TX"
     2      1    version 2
@@ -58,6 +66,8 @@ FLAG_FAILSAFE = 0x01
 NAME_FIELD_LEN = 16
 MAX_AXES = 8
 MAX_BUTTONS = 32
+SUBSCRIBE_MAGIC = b"TXSUB"
+SUBSCRIBER_TIMEOUT = 3.0
 
 
 def log(msg):
@@ -102,13 +112,39 @@ class Device:
 class Bridge:
     def __init__(self, args):
         self.args = args
+        # One socket for everything: bound to the well-known port so
+        # subscribers have a fixed place to send TXSUB, used for all
+        # outgoing sends too (legacy v1 and the v2 subscriber stream).
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.bind(("127.0.0.1", args.port))
+        self.sock.setblocking(False)
         self.legacy_dests = [("127.0.0.1", p) for p in args.legacy_ports]
-        self.dests = [("127.0.0.1", p) for p in args.ports]
+        self.subscribers = {}  # (ip, port) -> monotonic last-heard
         self.seq = 0
         self.devices = {}  # id -> Device
         self.next_id = 0
         self.running = True
+
+    def poll_subscribers(self):
+        while True:
+            try:
+                data, addr = self.sock.recvfrom(64)
+            except (BlockingIOError, InterruptedError):
+                break
+            except ConnectionResetError:
+                # Windows raises this on recvfrom after a previous sendto
+                # hit a closed port (WSAECONNRESET) -- harmless here, the
+                # timeout pruning below handles dead subscribers.
+                continue
+            if data == SUBSCRIBE_MAGIC:
+                if addr not in self.subscribers:
+                    log(f"subscriber added: {addr[0]}:{addr[1]}")
+                self.subscribers[addr] = time.monotonic()
+        now = time.monotonic()
+        for addr in list(self.subscribers):
+            if now - self.subscribers[addr] > SUBSCRIBER_TIMEOUT:
+                del self.subscribers[addr]
+                log(f"subscriber timed out: {addr[0]}:{addr[1]}")
 
     def rescan(self):
         # Periodic diff against SDL_NumJoysticks() rather than parsing
@@ -150,25 +186,37 @@ class Bridge:
             return None
         return self.devices[min(self.devices)]
 
+    def send_to(self, pkt, dest):
+        try:
+            self.sock.sendto(pkt, dest)
+        except OSError:
+            # Windows surfaces an ICMP port-unreachable from an EARLIER send
+            # as ConnectionResetError on a later sendto/recvfrom
+            # (WSAECONNRESET) -- e.g. right after a game instance closes.
+            # Nothing to handle: dead subscribers age out via the timeout,
+            # and the legacy port is fire-and-forget by design.
+            pass
+
     def send_v1(self, flags=0):
         prim = self.primary()
         axes = prim.axes if prim else [1024] * MAX_AXES
         buttons = prim.buttons if prim else 0
         pkt = struct.pack(V1_FMT, b"TX", 1, flags, self.seq & 0xFFFFFFFF, *axes, buttons)
         for dest in self.legacy_dests:
-            self.sock.sendto(pkt, dest)
+            self.send_to(pkt, dest)
 
-    def send_v2(self):
+    def send_v2(self, flags=0):
         for dev in self.devices.values():
             name_bytes = dev.name.encode("utf-8")[:NAME_FIELD_LEN].ljust(NAME_FIELD_LEN, b"\0")
-            pkt = struct.pack(V2_FMT, b"TX", 2, 0, self.seq & 0xFFFFFFFF, *dev.axes, dev.buttons,
+            pkt = struct.pack(V2_FMT, b"TX", 2, flags, self.seq & 0xFFFFFFFF, *dev.axes, dev.buttons,
                                dev.id, name_bytes)
-            for dest in self.dests:
-                self.sock.sendto(pkt, dest)
+            for dest in self.subscribers:
+                self.send_to(pkt, dest)
 
     def send_failsafe(self):
         for _ in range(3):
             self.send_v1(FLAG_FAILSAFE)
+            self.send_v2(FLAG_FAILSAFE)
             time.sleep(0.01)
 
     def run(self):
@@ -182,6 +230,11 @@ class Bridge:
         while self.running:
             now = time.monotonic()
             if now >= next_rescan:
+                # SDL only refreshes its joystick device list inside the event
+                # pump -- without this, SDL_NumJoysticks() never changes after
+                # init, and a controller plugged in while the daemon is already
+                # running stays invisible until a restart.
+                sdl2.SDL_PumpEvents()
                 self.rescan()
                 next_rescan = now + 2.0
                 if self.devices:
@@ -190,12 +243,18 @@ class Bridge:
                     log("waiting for a controller (plug in a joystick/gamepad/RC transmitter)...")
                     announced_empty = True
 
+            self.poll_subscribers()
+
             has_primary = self.primary() is not None
             if had_primary and not has_primary:
                 log("primary device lost, sending FAILSAFE (legacy port)")
                 self.send_failsafe()
             had_primary = has_primary
 
+            # Required every tick -- SDL_JoystickGetAxis/GetButton otherwise
+            # return the state from whenever the joystick was opened, not
+            # the current state.
+            sdl2.SDL_JoystickUpdate()
             for dev in self.devices.values():
                 dev.poll()
 
@@ -234,8 +293,10 @@ def parse_ports(s):
 
 def main():
     ap = argparse.ArgumentParser(description="Generic joystick/gamepad -> UDP bridge for GTA SA MoonLoader")
-    ap.add_argument("--ports", type=parse_ports, default=[42013],
-                     help="UDP destination port(s) for the v2 multi-device protocol (moonloader/drone.lua), default 42013")
+    ap.add_argument("--port", type=int, default=42013,
+                     help="UDP port the daemon listens on for TXSUB subscriptions; the v2 multi-device "
+                          "stream goes back to every subscriber's own (ephemeral) port, so any number of "
+                          "game instances can consume it at once (moonloader/drone/net.lua). Default 42013")
     ap.add_argument("--legacy-ports", type=parse_ports, default=[42012],
                      help="UDP destination port(s) for the v1 single-device protocol (moonloader/tx12.lua, unmodified), default 42012")
     ap.add_argument("--rate", type=int, default=100, help="packets per second")

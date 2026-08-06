@@ -2,21 +2,20 @@
 
 ## File + live attribute, not live Lua synthesis
 
-Two approaches were considered for motor sound:
+A short (~1s) looped `.wav` plays continuously via BASS while the drone is
+spawned; only `BASS_ChannelSetAttribute(BASS_ATTRIB_FREQ/VOL)` on the
+already-playing channel gets retuned every tick from throttle and
+distance-to-pilot. This is cheap and doesn't depend on precise Lua-side
+timing.
 
-1. **Pre-baked looped sample + live pitch/volume** (chosen): a short (~1s)
-   looped `.wav` plays continuously via BASS while the drone is spawned, and
-   only `BASS_ChannelSetAttribute(BASS_ATTRIB_FREQ/VOL)` on the
-   already-playing channel gets retuned every tick from throttle and
-   distance-to-pilot. Cheap, and doesn't depend on precise Lua-side timing.
-2. **Live Lua `STREAMPROC` synthesis** (rejected): generating raw samples in
-   a Lua callback every buffer refill. Rejected because LuaJIT's GC can
-   pause for a few ms at an unpredictable moment — invisible for a dropped
-   game frame, but audible as a click/stutter in a continuous audio buffer.
+Live synthesis (generating raw samples in a Lua `STREAMPROC` callback every
+buffer refill) is not used here: LuaJIT's GC can pause for a few ms at an
+unpredictable moment — invisible for a dropped game frame, but audible as a
+click/stutter in a continuous audio buffer.
 
-## `bass.dll` is already present, nothing to bundle
+## `bass.dll` requires nothing to bundle
 
-Confirmed present at the game's own root (next to `gta_sa.exe`, i.e. on the
+It's present at the game's own root (next to `gta_sa.exe`, i.e. on the
 default DLL search path) — `ffi.load("bass")` in
 `moonloader/lib/bass.lua` resolves with nothing extra needed. BASS's device
 is process-wide (the DLL is a single native module, not per-script) — if

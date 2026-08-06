@@ -93,11 +93,30 @@ function Drone:updatePhysics(dt, receiver)
         -- LEVEL/HORIZON: stick commands a target bank/pitch ANGLE, not a
         -- rate -- see docs/physics.md.
         local rollAngle = math.atan2(self.right.z, self.up.z)
-        local pitchAngle = math.asin(clamp(self.fwd.z, -1, 1))
+        -- Negated: pitch rotates about `right`, and for this basis's
+        -- handedness (up = fwd x right) a positive pitch rate DECREASES
+        -- fwd.z, opposite of how a positive roll rate increases rollAngle
+        -- above. Without the negation this P-controller is positive
+        -- feedback (diverges/spins) instead of self-leveling.
+        local pitchAngle = -math.asin(clamp(self.fwd.z, -1, 1))
         local levelMaxRad = math.rad(cfg.level_max_angle_deg)
         local acroP, acroQ = roll * rateMax, pitch * rateMax
         local levelP = clamp((roll * levelMaxRad - rollAngle) * cfg.level_gain, -rateMax, rateMax)
         local levelQ = clamp((pitch * levelMaxRad - pitchAngle) * cfg.level_gain, -rateMax, rateMax)
+        -- rollAngle/pitchAngle are only well-defined while the combined
+        -- tilt from vertical is well under 90 deg (up.z well above 0) --
+        -- right at 90 deg, up.z crosses zero and atan2/asin's result
+        -- becomes discontinuous (a pure, zero-roll pitch past ~90 deg can
+        -- flip the atan2(right.z, up.z) reading from 0 deg to 180 deg from
+        -- floating-point noise alone, reported as a huge fake roll error).
+        -- Fade the self-level contribution to zero as up.z approaches that
+        -- singularity so a large HORIZON-mode excursion hands off to pure
+        -- rate control instead of reacting to a garbage angle reading.
+        -- LEVEL's own default max angle (45 deg, up.z ~= 0.7) stays well
+        -- clear of this fade zone.
+        local levelValidity = clamp(self.up.z / 0.3, 0, 1)
+        levelP = levelP * levelValidity
+        levelQ = levelQ * levelValidity
         if cfg.flight_mode == 'LEVEL' then
             pTarget, qTarget = levelP, levelQ
         else -- HORIZON: blend acro in as each stick approaches full deflection

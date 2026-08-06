@@ -1,7 +1,7 @@
--- FPV camera. See docs/orientation.md "camera roll" for the six approaches
--- that were tried before this one -- the native in-vehicle camera (via
--- warpCharIntoCar in drone.lua's :spawn()) is what actually banks correctly,
--- so this module has almost nothing left to do every tick.
+-- FPV camera. The native in-vehicle camera (activated via warpCharIntoCar
+-- in drone.lua's :spawn()) is what actually banks correctly with the
+-- drone's own matrix, so this module has almost nothing left to do every
+-- tick -- see docs/orientation.md for why the alternatives don't work.
 local ffi = require 'ffi'
 local SAMemory = require 'SAMemory'
 SAMemory.require('CCamera') -- for TheCamera.mCameraMatrix / aCams -- see docs/orientation.md

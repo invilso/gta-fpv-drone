@@ -1,13 +1,13 @@
 -- Flight recorder binary format (FFI structs), shared by recorder.lua and
--- player.lua. See docs/replay.md for the format-versioning rationale and the
--- v1->v2 breaking change.
+-- player.lua. See docs/replay.md for the format-versioning rationale --
+-- each version bump is a breaking change, no migration path.
 local ffi = require 'ffi'
 
 local M = {}
 
 M.MAX_ENTITIES = 48
 M.MAGIC = 'DRPL'
-M.VERSION = 2
+M.VERSION = 3
 
 ffi.cdef(string.format([[
 #pragma pack(push, 1)
@@ -28,6 +28,10 @@ typedef struct {
     float    thrust;           // spooled 0..1 throttle
     // Physics accel breakdown, for the OSD's thrust-breakdown panel only.
     float    thrustAccel, gravity, dragUp, ground, ceiling, windZ, accelZ;
+    // Raw normalized stick position (calibrated, pre-expo/deadzone) --
+    // same values the live OSD's stick-position boxes show, see osd.lua.
+    // stickThrottle is 0..1 (axisUni); the other three are -1..1 (axisBi).
+    float    stickRoll, stickPitch, stickYaw, stickThrottle;
     uint8_t  flags;            // bit0=armed bit1=grounded bit2=exploding bit3=connected bit4-5=flight_mode(0..2) bit6=throttle_3d
     uint8_t  entityCount;      // how many of entities[] are populated this frame
     replay_entity_t entities[%d];

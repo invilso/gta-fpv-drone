@@ -60,6 +60,9 @@ OSD). No flight/replay/UI logic lives here.
 - **`drone/osd.lua`** (`OSD`) — all on-screen display drawing, reading from
   one telemetry table populated identically whether flying live or watching
   a replay.
+- **`drone/sp.lua`** (`SPExtras`) — singleplayer-only extras: player
+  protection during flight, police shoot-down damage watch, population
+  density/limit boost. Every effect is a no-op in SAMP.
 - **`drone/font.lua`** — one-time auto-download and hot-swap of the menu font.
 - **`drone/ui.lua`** (`UI`) — the mimgui settings window (profiles, general
   settings including the controller picker, and the replay browser/player controls).

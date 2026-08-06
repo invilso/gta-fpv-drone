@@ -86,6 +86,15 @@ installer will tell you exactly what to get):
   Python dependency (`pysdl2`) is declared inline and installed
   automatically on first run
 
+**Wine/Proton note**: mimgui (and the older `imgui.lua` many other scripts
+use) hard-requires `C:\windows\Fonts\trebucbd.ttf` (Trebuchet MS Bold) and
+dies with a font assert if the Wine prefix doesn't have it — fresh Proton
+prefixes don't. This mod handles it automatically: if the file is missing
+at startup, the bundled Inter.ttf is planted under that path (mimgui loads
+whatever bytes live there), so every imgui-based script in the game starts
+normally. Installing real corefonts (`winetricks corefonts`) also works if
+you prefer the authentic font.
+
 ## How it's built
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for a system-level overview, and

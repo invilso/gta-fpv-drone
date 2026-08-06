@@ -8,6 +8,10 @@ local Class = require 'class'
 local vecmath = require 'vecmath'
 local vNorm, vCross = vecmath.vNorm, vecmath.vCross
 
+-- for the vehicleAudio mute in createFrozenVehicle
+local SAMemory = require 'SAMemory'
+SAMemory.require('CVehicle')
+
 local Drone = Class('Drone')
 
 -- RCCAM (594, lib/game/models.lua) is mislabeled -- spawns a plant pot, not
@@ -42,7 +46,7 @@ function Drone:init(cfg, audio)
 
     self.lastCrashClock = -1000
     self.crashWatchUntil = nil
-    self.lastCollisionKind = 'none' -- 'none' | 'belly' | 'bump' | 'crash'
+    self.lastCollisionKind = 'none' -- 'none' | 'belly' | 'slide' | 'bounce' | 'crash'
     self.collisionHitCount, self.collisionHitsPerSec, self.collisionCountWindowStart = 0, 0, 0
     self.stickCandidateIndex = 1 -- see collision.lua's debug cycler
 
@@ -78,6 +82,12 @@ function Drone.createFrozenVehicle(px, py, pz)
     setCarEngineOn(obj, true) -- it's a heli (CHeli), never actually started otherwise
     setCarProofs(obj, true, true, true, true, true)
     setCarCanBeDamaged(obj, false)
+    -- RCRAIDER is a CHeli -- GTA's own rotor/engine audio for it is loud
+    -- enough to drown out the script's motor sound (audio.lua), which is
+    -- meant to be the drone's only sound source. Disabling the per-vehicle
+    -- audio entity silences all of it; the rotors still spin visually.
+    local veh = ffi.cast('CVehicle*', getCarPointer(obj))
+    veh.vehicleAudio.bEnabled = false
     return obj
 end
 
@@ -135,6 +145,15 @@ function Drone:spawn(receiver, recorder, playerActive)
     -- standing at the launch point in the player's place.
     local pedModel = getCharModel(PLAYER_PED)
     local decoy = createChar(4, pedModel, px, py, pz)
+    -- createChar's z convention differs from getCharCoordinates' (ground
+    -- level vs. ped center) -- created directly at the raw get value the
+    -- decoy ends up ~1 m above where the player stood, and since despawn
+    -- warps the player back to the decoy's coordinates, every
+    -- spawn/despawn cycle ratchets the player upward by that meter (in
+    -- SAMP, accumulated airborne teleports read as a fly-hack).
+    -- setCharCoordinates uses the same convention as getCharCoordinates,
+    -- so re-placing through it lands the decoy exactly on the spot.
+    setCharCoordinates(decoy, px, py, pz)
     setCharHeading(decoy, heading)
     setCharProofs(decoy, true, true, true, true, true)
     setCharCollision(decoy, false)

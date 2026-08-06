@@ -38,9 +38,23 @@ daemon emits **both**, from the same live device set:
   open), sent to `--legacy-ports` (default 42012). Consumed by
   `moonloader/tx12.lua`.
 - **v2** (45 bytes) — one packet *per connected device*, each tagged with
-  `deviceId` (uint8) and `name` (16-byte UTF-8, NUL-padded), sent to
-  `--ports` (default 42013). Consumed by `moonloader/drone/protocol.lua` +
+  `deviceId` (uint8) and `name` (16-byte UTF-8, NUL-padded), streamed to
+  every **subscriber**. Consumed by `moonloader/drone/protocol.lua` +
   `net.lua`.
+
+v2 delivery is subscription-based: the daemon owns the one well-known port
+(`--port`, default 42013); each consumer binds an *ephemeral* port (the OS
+picks a free one, so any number of game instances — SAMP + singleplayer —
+can run at once with zero configuration) and sends the 5-byte magic
+`TXSUB` to the daemon at least every ~3 s. The daemon streams v2 packets
+back to every subscriber it heard from recently and drops the ones that go
+quiet — the keepalive doubles as the subscription, so there is no
+connect/disconnect handshake to get wrong. A unicast datagram can't be
+delivered to two sockets bound to one port, which rules out the naive
+"everyone listens on 42013" layout for multi-instance use; subscription
+keeps exactly one fixed port occupied on the whole system (the daemon's).
+On shutdown the daemon sends v2 packets flagged FAILSAFE to all
+subscribers, on top of each receiver's own silence timeout.
 
 `name` is embedded in every v2 packet rather than sent via a separate
 "announce" packet type — simplest option, no extra timing/staleness logic

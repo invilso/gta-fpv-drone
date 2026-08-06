@@ -1,48 +1,40 @@
 # Flight model tuning notes
 
-## The two "drone won't fall" bugs (most expensive bug of the original build)
+## Ground/ceiling effect must filter the drone's own entity
 
-Symptom: the drone never fell even at high simulated gravity, and
-`motor_tau` appeared to have no effect. Two independent causes, both found
-via a live debug overlay printing the actual per-frame accel breakdown
-(thrust/gravity/dragUp/ground/ceiling/windZ → accelZ) — guessing at
-parameters did not find either of these; the numeric overlay did, on the
-first look.
+`surfaceProximityAccel` casts a ray from the drone's own center. Any such
+ray must filter out the drone's own vehicle as a valid hit — otherwise it
+hits itself at ~0 distance and reports near-maximum ground effect *and*
+ceiling effect simultaneously every tick, which nearly cancels gravity
+outright regardless of throttle or actual surroundings. `checkCollision`
+already filters this way (see `docs/collision.md`); `surfaceProximityAccel`
+must match it.
 
-1. **`surfaceProximityAccel` (ground/ceiling effect) didn't filter the
-   drone's own entity**, unlike `checkCollision` which already did. The ray
-   starts at the drone's own center, so with `car=true` it immediately hit
-   *itself* at ~0 distance, applying near-maximum ground effect *and*
-   ceiling effect simultaneously every tick — nearly canceling gravity
-   outright regardless of throttle or actual surroundings.
-2. **`uint`/`int` pointer-type mismatch**: `getCarPointer` returns `uint`,
-   but `processLineOfSight`'s `colPoint.entity` is documented `int` (signed).
-   For real heap addresses ≥ `0x80000000` these come back as different-signed
-   Lua numbers, so a plain `==` self-pointer comparison silently never
-   matched anywhere it was used. Fixed by normalizing both sides through
-   `bit.tobit()` before comparing (see `samePtr` in `vecmath.lua`).
+This pointer comparison must go through `samePtr()` (`vecmath.lua`), not a
+plain `==`: `getCarPointer` returns `uint`, but `processLineOfSight`'s
+`colPoint.entity` is documented `int` (signed). For real heap addresses
+≥ `0x80000000` these come back as different-signed Lua numbers, so a plain
+`==` self-pointer comparison silently never matches.
 
-**Lesson for future physics work:** a sudden "nothing falls / nothing
-reacts" symptom is much more likely a self-collision bug than a tuning
-problem — check entity-self-filtering first, before touching any physics
-constant.
+**A sudden "nothing falls / nothing reacts" symptom is far more likely a
+self-collision filtering bug than a tuning problem** — check entity-self-
+filtering first, before touching any physics constant.
 
-## Drag tuning — overcorrection story
+## Drag is anisotropic on purpose
 
-Vertical (`up`-axis) drag was originally too strong — the drone had a
-noticeably slower-than-real free-fall terminal velocity (~8.7 m/s vs. the
-expected ~19.6 m/s after 2s of real gravity), i.e. it behaved like it had
-wings. Cutting `up`-axis drag fixed that, but cutting `fwd`/`right` drag by
-the same factor *at the same time* was an overcorrection — with almost no
-horizontal drag, a throttle cut at speed just glided for a very long
-distance instead of dropping. **Final tuning**: `fwd`/`right` restored to
-their original (draggier) values — a real frame/props are draggy sideways-on
-even with motors off — only `up`-axis drag stayed reduced, since vertical
-free-fall speed was the actual complaint.
+`up`-axis drag is deliberately much lower than `fwd`/`right` drag in every
+profile. A real quad frame/props are draggy sideways-on even with motors
+off (`fwd`/`right`), but vertical free-fall should approach real-gravity
+terminal velocity, not float down — keeping `fwd`/`right` drag high and
+`up`-axis drag low is what makes both true at once. Cutting all three axes
+uniformly under-dampens horizontal flight (a throttle cut glides for a very
+long distance instead of dropping); raising `up`-axis drag to match the
+others makes free-fall too slow. Tune these independently, not as one
+scalar.
 
-`motor_tau` (motor spool time constant) was reduced 0.15s → 0.06s — it felt
-mushy/laggy on throttle release at the higher value; real small FPV
-motors/ESCs respond in tens of ms, not hundreds.
+`motor_tau` (motor spool time constant, ~0.06s by default) should stay in
+the tens-of-ms range — real small FPV motors/ESCs respond that fast; larger
+values feel mushy/laggy on throttle release.
 
 ## Ground/ceiling effect
 
@@ -50,8 +42,7 @@ A downward/upward ray each physics tick finds the nearest surface within
 range and adds a world-vertical push, falling off as `strength * (1 -
 dist/radius)^2`. Both effects end up as world `+z` — they just trigger off
 opposite-facing rays (ground pushes away from a surface below, ceiling pulls
-toward a surface above, both "up" in the push-direction sense). See the
-self-collision bug above — this is the function that had it.
+toward a surface above, both "up" in the push-direction sense).
 
 ## Flight modes (ACRO / LEVEL / HORIZON)
 
@@ -77,3 +68,41 @@ Orientation is always kept as an orthonormal basis (`fwd`/`right`/`up`), not
 Euler angles, specifically to avoid gimbal lock during flips — display-only
 values (OSD pitch/roll/heading) are extracted from this basis, never fed
 back into the physics.
+
+## LEVEL/HORIZON's roll and pitch angle readouts have opposite sign conventions
+
+`rollAngle = atan2(right.z, up.z)` and `pitchAngle = -asin(fwd.z)` (note the
+negation) are **not** interchangeable formulas with a sign swapped for
+convenience — the negation on pitch is required by this basis's handedness
+(`up = fwd × right`, `right = up × fwd`). A positive roll rate (about
+`fwd`) increases `right.z`, so `rollAngle` grows in the same direction the
+rate turns it. A positive pitch rate (about `right`) *decreases* `fwd.z`,
+so `pitchAngle` must be negated for its sign to also grow in the direction
+its own rate turns it. Both P-controllers (`levelP`/`levelQ`) rely on
+`target - currentAngle` being negative feedback — an un-negated
+`pitchAngle` makes the pitch controller positive feedback instead (the
+commanded rate pushes the angle further from center, not back toward it),
+which diverges to a continuous spin rather than leveling. If LEVEL/HORIZON
+pitch (or, by extension, HORIZON's blended output) ever misbehaves again,
+check this sign first before adjusting `level_gain` or any other tuning
+constant.
+
+## `rollAngle`/`pitchAngle` are only valid well under 90° combined tilt
+
+Both formulas depend on `up.z` (`atan2(right.z, up.z)` directly; `asin(fwd.z)`
+indirectly, since a large pitch also drives `up.z` toward 0). As the
+combined tilt from vertical approaches 90°, `up.z` approaches 0, and
+`atan2(right.z, up.z)` becomes discontinuous there — a pure zero-roll pitch
+past ~90° can flip the reading from 0° to 180° from floating-point noise
+alone, which the roll P-controller reads as a large fake roll error and
+corrects by spinning roll at full rate, even though the pilot never touched
+the roll stick.
+
+`levelP`/`levelQ` are scaled by `levelValidity = clamp(up.z / 0.3, 0, 1)`,
+fading the self-level contribution to zero as `up.z` approaches the
+singularity so a large excursion (HORIZON's acro-blended pitch routinely
+passes 90°) hands off to pure rate control instead of reacting to a
+garbage angle. LEVEL's own default `level_max_angle_deg` (45°, `up.z` ≈
+0.7) never reaches this fade zone, so this only matters for HORIZON's
+large-deflection behavior (or a `level_max_angle_deg` pushed unusually
+high).

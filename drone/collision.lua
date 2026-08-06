@@ -52,7 +52,7 @@ function Drone:crash(colPoint, recorder)
         local fx = createFxSystem(self.cfg.crash_fx_name, cx, cy, cz, 0)
         if fx then playAndKillFxSystem(fx) end
     else
-        addExplosion(cx, cy, cz, self.cfg.crash_explosion_radius)
+        addExplosion(cx, cy, cz, self.cfg.crash_explosion_type)
     end
 
     -- Side-on external view of the wreck -- the native in-car camera has
@@ -77,12 +77,11 @@ function Drone:finishCrash()
     return self.cfg.auto_respawn_after_crash
 end
 
--- ============================== sticking-bug debug cycler ==============================
--- TEMPORARY (see docs/collision.md "sticking" -- setCarCoordinates was the
--- real cause and is already fixed by the direct matrix write in
--- physics.lua). This cycler predates that finding and is kept only as a
--- live debug tool (F key) in case a similar symptom resurfaces; remove
--- outright if it's never needed again.
+-- ============================== CVehicle-flag debug cycler ==============================
+-- Live in-game tool (F key) for testing whether a given CVehicle/CEntity
+-- flag affects a physics/collision symptom, without a full script restart
+-- per candidate. Not wired to any known live bug -- see docs/collision.md
+-- for the anti-clip-snap issue this class of symptom usually turns out to be.
 Drone.STICK_CANDIDATES = {
     {name = 'none (baseline)', apply = function(ent, veh) end},
     {name = 'CVehicle.nFlags.bIsRCVehicle=false', apply = function(ent, veh) veh.nFlags.bIsRCVehicle = false end},

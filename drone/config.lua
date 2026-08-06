@@ -104,6 +104,7 @@ local function defaultData()
         cheat_spawn = 'DRONE',
         cheat_menu = 'CFGD',
         recall_vk = 0x52,        -- 'R'
+        recall_btn = -1,         -- controller button bit index, -1 = unbound
         arm_enabled = true,      -- require throttle-near-zero at spawn before it's allowed to fly
         arm_throttle_max = 0.08,
         axis_roll = 1,
@@ -129,13 +130,33 @@ local function defaultData()
         },
         active_profile = 'default',
         collision_radius = 0.6,     -- multi-ray spread around the flight path, world units
-        crash_explosion_radius = 20.0, -- SP only, addExplosion() radius
+        -- SP only. addExplosion()'s 4th argument is an eExplosionType
+        -- (0 grenade, 1 molotov, 2 rocket, 3 weak rocket, 4 car,
+        -- 5 quick car, 6 boat, 7 aircraft, 8 mine, 9 object, 10 tank,
+        -- 11 small, 12 rc vehicle), NOT a radius -- an out-of-range value
+        -- makes an explosion with no damage profile (sound and visuals,
+        -- nothing hurt).
+        crash_explosion_type = 2,
         crash_cooldown_ms = 0,
         auto_respawn_after_crash = true,
         crash_view_delay_ms = 1000, -- hold an external side-on view of the wreck this long
         crash_fx_name = 'explosion_large', -- SAMP: visual-only FX system, no real explosion -- see docs/collision.md
-        crash_prop_speed = 6.0, -- world units/s -- non-belly hit at/above this speed crashes it
+        crash_prop_speed = 6.0, -- world units/s INTO the surface (normal component) -- non-belly impact at/above this crashes it
+        indestructible = false, -- rubber mode: crash-grade impacts bounce off instead of exploding
+        bounce_restitution = 0.6, -- 0..1 -- fraction of the approach speed kept (reversed) on an indestructible bounce
+        slide_friction = 2.0,   -- 1/s -- exponential decay rate of the sliding (tangential) velocity while scraping a surface
+        slide_stop_speed = 1.0, -- world units/s -- a belly slide below this comes to a full stop (grounded)
         liftoff_throttle_min = 0.08, -- throttle needed to leave a grounded/landed state
+        -- Singleplayer-only extras (all no-ops in SAMP -- see sp.lua):
+        sp_bullet_vulnerable = true, -- police fire damages the drone; enough hits = crash
+        sp_drone_health = 4000,     -- vehicle health pool while bullet-vulnerable (stock is 1000 -- oversized pool stands in for how hard a small fast target is to actually hit)
+        sp_ped_density = 1.0,       -- ped population multiplier while the drone is flying
+        sp_car_density = 1.0,       -- traffic density multiplier while the drone is flying
+        sp_population_boost = false, -- raise the engine's max live peds/cars while flying (memory patch, see sp.lua)
+        sp_max_peds = 60,           -- boosted CPopulation::MaxNumberOfPedsInUse (engine default 25)
+        sp_max_cars = 60,           -- boosted CCarCtrl::MaxNumberOfCarsInUse (engine default 30)
+        sp_no_despawn = true,       -- pin peds/cars near the drone against the engine's off-screen removal (see sp.lua)
+        sp_keep_radius = 200.0,     -- pin radius around the drone, world units
         -- Wind: off by default. Direction uses the same heading convention as
         -- the rest of the script (0 = +y, 90 = +x). See vecmath.turbulence1D.
         wind_enabled = false,
@@ -168,7 +189,7 @@ local function defaultData()
         throttle_3d = false,
         flight_mode_cycle_vk = 0x4D, -- 'M'
         throttle_3d_toggle_vk = 0x4E, -- 'N'
-        flight_mode_cycle_btn = -1, -- TX12 button bit index, -1 = unbound
+        flight_mode_cycle_btn = -1, -- controller button bit index, -1 = unbound
         throttle_3d_toggle_btn = -1,
         level_max_angle_deg = 45.0,
         level_gain = 8.0,

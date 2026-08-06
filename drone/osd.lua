@@ -37,6 +37,11 @@ function OSD:init(cfg)
         profileName = '', profileMass = 0, profileMaxThrust = 0,
         flightElapsed = 0,
         recording = false, replaying = false, replayCount = 0, replayCapacity = 0,
+        -- Raw normalized stick position for the stick-position boxes --
+        -- see docs/replay.md for why these go through telemetry too (a
+        -- replay must show the recorded sticks, not whatever the live
+        -- controller happens to be doing right now).
+        stickRoll = 0, stickPitch = 0, stickYaw = 0, stickThrottle = 0,
     }
 end
 
@@ -67,6 +72,11 @@ function OSD:syncLive(drone, receiver, recorder)
     t.replaying = false
     t.replayCount = recorder.count
     t.replayCapacity = recorder.capacity
+    local calib, axesRaw = self.cfg.calib, receiver.axesRaw
+    t.stickRoll = vecmath.axisBi(calib, axesRaw, self.cfg.axis_roll)
+    t.stickPitch = vecmath.axisBi(calib, axesRaw, self.cfg.axis_pitch)
+    t.stickYaw = vecmath.axisBi(calib, axesRaw, self.cfg.axis_yaw)
+    t.stickThrottle = vecmath.axisUni(calib, axesRaw, self.cfg.axis_throttle)
 end
 
 -- Cosmetic only -- roll/pitch here are extracted from the body basis purely
@@ -145,10 +155,9 @@ function OSD:drawVario(x, y, height)
     renderFontDrawText(self.font, string.format('%+.1f', self.telemetry.vel.z), x - 34, markerY - 16, color)
 end
 
--- drone: for decoyPed/pos (ALT/DIST readouts). cfg/receiver: for the raw
--- stick-position boxes, which always mirror the live sticks regardless of
--- live/replay.
-function OSD:draw(drone, cfg, receiver)
+-- drone: for decoyPed/pos (ALT/DIST readouts) and attitude/heading. All
+-- other values, including stick position, come from self.telemetry.
+function OSD:draw(drone)
     if not self.font then return end
     local t = self.telemetry
     local resX, resY = getScreenResolution()
@@ -236,14 +245,13 @@ function OSD:draw(drone, cfg, receiver)
 
     -- Stick position boxes, bottom center: left = yaw/throttle, right =
     -- roll/pitch. Shows the raw normalized stick position (not the
-    -- flight-inverted control values), like a real TX/goggle OSD.
+    -- flight-inverted control values), like a real TX/goggle OSD -- read
+    -- from telemetry, not the live receiver, so a replay shows the
+    -- recorded sticks instead of whatever the controller is doing right now.
     local boxSize, gap = 56, 12
     local stickY = resY - 90
-    local calib, axesRaw = cfg.calib, receiver.axesRaw
-    drawStickBox(cx - gap / 2 - boxSize / 2, stickY, boxSize,
-        vecmath.axisBi(calib, axesRaw, cfg.axis_yaw), vecmath.axisUni(calib, axesRaw, cfg.axis_throttle) * 2 - 1, 0xFF40E0FF)
-    drawStickBox(cx + gap / 2 + boxSize / 2, stickY, boxSize,
-        vecmath.axisBi(calib, axesRaw, cfg.axis_roll), vecmath.axisBi(calib, axesRaw, cfg.axis_pitch), 0xFF40E0FF)
+    drawStickBox(cx - gap / 2 - boxSize / 2, stickY, boxSize, t.stickYaw, t.stickThrottle * 2 - 1, 0xFF40E0FF)
+    drawStickBox(cx + gap / 2 + boxSize / 2, stickY, boxSize, t.stickRoll, t.stickPitch, 0xFF40E0FF)
 end
 
 local function grayColor(alpha, shade) return bit.lshift(alpha, 24) + shade * 0x010101 end

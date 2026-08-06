@@ -19,6 +19,13 @@ local fmt = require 'replay.format'
 
 local UI = Class('UI')
 
+-- eExplosionType (plugin-sdk): the index of each name here, 0-based, IS the
+-- enum value passed to addExplosion -- keep the order exactly.
+UI.EXPLOSION_TYPES = {
+    'Grenade', 'Molotov', 'Rocket', 'Weak rocket', 'Car', 'Quick car',
+    'Boat', 'Aircraft', 'Mine', 'Object', 'Tank shell', 'Small', 'RC vehicle',
+}
+
 function UI:init(configObj, drone, receiver, recorder, player)
     self.configObj = configObj
     self.cfg = configObj.data
@@ -79,6 +86,22 @@ function UI:uiInputInt(label, tbl, field, step)
     end
 end
 
+-- Dropdown over a fixed list of names; tbl[field] stores the 0-based index
+-- (matching the game enum the list mirrors).
+function UI:uiCombo(label, tbl, field, items)
+    local cur = (tbl[field] or 0) + 1
+    local preview = items[cur] or tostring(tbl[field])
+    if imgui.BeginCombo(label, preview) then
+        for i, name in ipairs(items) do
+            if imgui.Selectable(name, i == cur) then
+                tbl[field] = i - 1
+                self:markDirty()
+            end
+        end
+        imgui.EndCombo()
+    end
+end
+
 -- bufSize must stay constant per label across frames (mimgui char[] arrays
 -- are fixed-size) -- callers all use short config strings, 64 is plenty.
 function UI:uiInputText(label, tbl, field, bufSize)
@@ -100,8 +123,8 @@ function UI:drawKeyBind(label, field)
     end
 end
 
--- Same idea as drawKeyBind but for a TX12 button bit -- rising-edge capture,
--- same pattern as tx12.lua's own handleListen().
+-- Same idea as drawKeyBind but for a controller button bit -- rising-edge
+-- capture, same pattern as tx12.lua's own handleListen().
 function UI:drawBtnBind(label, field)
     local bound = self.cfg[field] >= 0
     local text = (self.btnListen == field) and 'flip a switch...' or (bound and ('bit ' .. self.cfg[field]) or 'unbound')
@@ -299,6 +322,8 @@ function UI:drawGeneralTab()
 
     imgui.Text('Keybinds:')
     self:drawKeyBind('Recall', 'recall_vk')
+    imgui.SameLine()
+    self:drawBtnBind('Controller', 'recall_btn')
     imgui.Separator()
 
     imgui.Text('Arm:')
@@ -329,12 +354,30 @@ function UI:drawGeneralTab()
 
     imgui.Text('Collision / crash:')
     self:uiSliderFloat('Collision ray spread', cfg, 'collision_radius', 0.1, 3.0, '%.2f')
-    self:uiSliderFloat('Crash speed threshold (non-belly)', cfg, 'crash_prop_speed', 0, 30, '%.1f')
+    self:uiSliderFloat('Crash speed threshold (into surface)', cfg, 'crash_prop_speed', 0, 30, '%.1f')
+    self:uiCheckbox('Indestructible (bounce instead of crash)', cfg, 'indestructible')
+    self:uiSliderFloat('Bounce restitution', cfg, 'bounce_restitution', 0, 1, '%.2f')
+    self:uiSliderFloat('Slide friction', cfg, 'slide_friction', 0.2, 10.0, '%.1f')
+    self:uiSliderFloat('Slide full-stop speed', cfg, 'slide_stop_speed', 0.1, 5.0, '%.1f')
     self:uiInputText('Crash FX particle name', cfg, 'crash_fx_name', 32)
-    self:uiSliderFloat('SP explosion radius', cfg, 'crash_explosion_radius', 0, 50, '%.1f')
+    self:uiCombo('SP explosion type', cfg, 'crash_explosion_type', UI.EXPLOSION_TYPES)
     self:uiInputInt('Crash cooldown, ms', cfg, 'crash_cooldown_ms', 100)
     self:uiInputInt('Crash view delay, ms', cfg, 'crash_view_delay_ms', 100)
     self:uiCheckbox('Auto-respawn after crash', cfg, 'auto_respawn_after_crash')
+    imgui.Separator()
+
+    imgui.Text('Singleplayer (no effect in SAMP):')
+    imgui.TextDisabled('Wanted stars accrue naturally (crash explosions count as crimes).')
+    self:uiCheckbox('Police can shoot the drone down', cfg, 'sp_bullet_vulnerable')
+    self:uiSliderFloat('Drone health', cfg, 'sp_drone_health', 1000, 10000, '%.0f')
+    self:uiSliderFloat('Ped density while flying', cfg, 'sp_ped_density', 0, 3, '%.1f')
+    self:uiSliderFloat('Traffic density while flying', cfg, 'sp_car_density', 0, 3, '%.1f')
+    self:uiCheckbox('Boost population limits (memory patch)', cfg, 'sp_population_boost')
+    self:uiInputInt('Max live peds', cfg, 'sp_max_peds', 5)
+    self:uiInputInt('Max live cars', cfg, 'sp_max_cars', 5)
+    self:uiCheckbox('No despawn around the drone', cfg, 'sp_no_despawn')
+    self:uiSliderFloat('No-despawn radius', cfg, 'sp_keep_radius', 50, 500, '%.0f')
+    imgui.TextDisabled('Applied on spawn, restored on despawn.')
     imgui.Separator()
 
     imgui.Text('Wind:')
@@ -352,10 +395,10 @@ function UI:drawGeneralTab()
     imgui.Text('Flight mode: ' .. cfg.flight_mode .. (cfg.throttle_3d and ' + 3D throttle' or ''))
     self:drawKeyBind('Cycle ACRO/LEVEL/HORIZON', 'flight_mode_cycle_vk')
     imgui.SameLine()
-    self:drawBtnBind('TX12', 'flight_mode_cycle_btn')
+    self:drawBtnBind('Controller', 'flight_mode_cycle_btn')
     self:drawKeyBind('Toggle 3D throttle', 'throttle_3d_toggle_vk')
     imgui.SameLine()
-    self:drawBtnBind('TX12', 'throttle_3d_toggle_btn')
+    self:drawBtnBind('Controller', 'throttle_3d_toggle_btn')
     self:uiSliderFloat('LEVEL max angle (deg)', cfg, 'level_max_angle_deg', 10, 80, '%.0f')
     self:uiSliderFloat('LEVEL/HORIZON gain', cfg, 'level_gain', 1, 20, '%.1f')
     self:uiSliderFloat('HORIZON blend start (stick frac)', cfg, 'horizon_blend_start', 0.1, 0.95, '%.2f')
@@ -364,7 +407,7 @@ function UI:drawGeneralTab()
     imgui.Text('Motor audio:')
     self:uiCheckbox('Enabled', cfg, 'audio_enabled')
     self:uiSliderFloat('Max range', cfg, 'audio_max_range', 10, 500, '%.0f')
-    self:uiSliderFloat('Max volume', cfg, 'audio_vol_max', 0, 1, '%.2f')
+    self:uiSliderFloat('Max volume (>1 amplifies)', cfg, 'audio_vol_max', 0, 3, '%.2f')
     self:uiSliderFloat('Pitch at idle', cfg, 'audio_pitch_min', 0.2, 1.5, '%.2f')
     self:uiSliderFloat('Pitch at full throttle', cfg, 'audio_pitch_max', 0.5, 3.0, '%.2f')
 end

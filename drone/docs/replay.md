@@ -21,19 +21,16 @@ the small `cfg` file, wrong for tens of thousands of numeric frames.
 
 `getCarCoordinates`/`getCharCoordinates` return plain `(x, y, z)`, but
 `getObjectCoordinates` returns `(bool result, x, y, z)` — an extra leading
-boolean. This crashed the entity scanner in-game
-(`attempt to perform arithmetic on local 'x' (a boolean value)`) before it
-was caught, because the generic per-kind scan code assumed all three shared
-the same 3-value shape. Fixed via a normalizing wrapper,
-`getObjectCoordinatesXYZ()`, used instead of the raw native everywhere in
-the scan path. Also: `setObjectRotation` is a 3-axis Euler setter (same
-axis-order-ambiguity family as the drone's own orientation saga, see
-`orientation.md`) — the correct single-heading setter for objects is
-`setObjectHeading(obj, angle)`.
+boolean. The generic per-kind entity scanner needs all three kinds to share
+one 3-value shape, so it goes through a normalizing wrapper,
+`getObjectCoordinatesXYZ()`, instead of the raw native. Also:
+`setObjectRotation` is a 3-axis Euler setter with the same axis-order
+ambiguity as `orientation.md` describes for the drone's own transform — the
+correct single-heading setter for objects is `setObjectHeading(obj, angle)`.
 
-**Lesson**: don't assume a "same family" native (`getObjectX` vs.
-`getCarX`/`getCharX`) shares a signature just because the other two do —
-check each one, ideally against an official native reference.
+**Don't assume a "same family" native (`getObjectX` vs. `getCarX`/
+`getCharX`) shares a signature just because the other two do** — check
+each one, ideally against an official native reference.
 
 ## Directory creation: use the MoonLoader native, not `os.execute`
 
@@ -60,21 +57,31 @@ Version 2 added full velocity plus a physics-accel breakdown
 (gravity/dragUp/ground/ceiling/windZ/accelZ/thrustAccel) and a
 per-file profile-metadata block (name/mass/max_thrust) to the header, so the
 OSD (including its telemetry panels) can be reproduced exactly during
-playback, not just the bare pose. This is a breaking format change —
-`.drpl` files saved before v2 are cleanly rejected as "incompatible
-version", not readable, and there was no migration written (not worth it for
-a debug/fun feature).
+playback, not just the bare pose.
+
+Version 3 added the raw normalized stick position (`stickRoll`/`stickPitch`/
+`stickYaw`/`stickThrottle`) — the OSD's stick-position boxes previously read
+`net.Receiver.axesRaw` directly regardless of live/replay, so during
+playback they showed whatever the live controller was doing at that moment,
+not the recorded flight's actual input. Recording the stick values and
+routing the OSD's stick display through `osdTelemetry` like every other
+field fixes this — see the `osdTelemetry` section above for why this
+indirection is the rule for any OSD field, not just an exception made here.
+
+Each version bump is a breaking format change — `.drpl` files saved before
+the current version are cleanly rejected as "incompatible version", not
+readable, and there is no migration path (not worth writing one for a
+debug/fun feature).
 
 ## `osdTelemetry`: a single source of truth, live and replay
 
-The OSD used to read `drone.vel` directly for the speed readout, but
-`tickPlayback()` never updated `drone.vel` during replay (only pos/fwd/up/
-thrust) — so **SPD silently showed 0 for an entire replay** before this was
-caught. Fixed by giving the OSD one telemetry table it always reads from,
-populated either by a live-tick sync function or a replay-tick sync function
-that unpacks the recorded frame's own velocity/flags. Any new OSD field
-should go through this table, not read `drone.*`/`connected`/`cfg.*`
-directly, or it will have the same live-only bug.
+The OSD reads every value from one telemetry table, populated either by a
+live-tick sync function or a replay-tick sync function that unpacks the
+recorded frame's own velocity/flags — never `drone.*`/`connected`/`cfg.*`
+directly. `tickPlayback()` only updates `drone.pos`/`fwd`/`up`/`thrust`,
+not `drone.vel` — any OSD field that bypasses `osdTelemetry` and reads
+`drone.*` directly will read stale or zero values during replay. Any new
+OSD field must go through this table.
 
 ## Entity proxies: known, accepted tradeoff
 

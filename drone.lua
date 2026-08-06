@@ -29,6 +29,7 @@ local camera = require 'camera'
 local Recorder = require 'replay.recorder'
 local Player = require 'replay.player'
 local OSD = require 'osd'
+local SPExtras = require 'sp'
 local UI = require 'ui'
 local font = require 'font'
 local vecmath = require 'vecmath'
@@ -48,6 +49,7 @@ local drone = Drone.new(cfg, audio)
 local recorder = Recorder.new(cfg)
 local player = Player.new()
 local osd = OSD.new(cfg)
+local sp = SPExtras.new(cfg)
 local ui = UI.new(configObj, drone, receiver, recorder, player)
 
 local autoRespawnPending = false
@@ -90,8 +92,8 @@ function main()
                 autoRespawnPending = false -- manual toggle overrides any pending auto-respawn
                 if drone.spawned then
                     despawnAll()
-                else
-                    drone:spawn(receiver, recorder, player:isActive())
+                elseif drone:spawn(receiver, recorder, player:isActive()) then
+                    sp:onSpawn(drone)
                 end
             end
             if testCheat(cfg.cheat_menu) then
@@ -100,8 +102,16 @@ function main()
         end
 
         if autoRespawnPending and not drone.spawned and (os.clock() - drone.lastCrashClock) * 1000 >= cfg.crash_cooldown_ms then
-            if drone:spawn(receiver, recorder, player:isActive()) then autoRespawnPending = false end
+            if drone:spawn(receiver, recorder, player:isActive()) then
+                autoRespawnPending = false
+                sp:onSpawn(drone)
+            end
         end
+
+        -- State-follow instead of hooking every despawn path (manual toggle,
+        -- crash's finishCrash, replay start, script errors) -- whenever the
+        -- drone is gone, SP effects must be rolled back.
+        if sp.active and not drone.spawned then sp:onDespawn() end
 
         -- Shared by both branches below (live flight and replay playback).
         local now = os.clock()
@@ -113,7 +123,7 @@ function main()
                 player:tick(dt, drone, camera, osd)
             end
         elseif drone.spawned then
-            if isKeyJustPressed(cfg.recall_vk) then
+            if isKeyJustPressed(cfg.recall_vk) or receiver:btnJustPressed(cfg.recall_btn) then
                 drone:recall()
             end
             if isKeyJustPressed(0x46) then -- 'F', see collision.lua's STICK_CANDIDATES
@@ -124,7 +134,7 @@ function main()
             if isKeyJustPressed(0x26) then cfg.cam_tilt_deg = vecmath.clamp(cfg.cam_tilt_deg + 1.0, -45, 45) end -- Up arrow
             if isKeyJustPressed(0x28) then cfg.cam_tilt_deg = vecmath.clamp(cfg.cam_tilt_deg - 1.0, -45, 45) end -- Down arrow
 
-            -- Flight mode / 3D-throttle switches: keyboard key OR TX12
+            -- Flight mode / 3D-throttle switches: keyboard key OR controller
             -- button, whichever fires first -- both configurable in the menu.
             if isKeyJustPressed(cfg.flight_mode_cycle_vk) or receiver:btnJustPressed(cfg.flight_mode_cycle_btn) then
                 local idx = 1
@@ -140,6 +150,11 @@ function main()
             if not isPauseMenuActive() then
                 osd:syncLive(drone, receiver, recorder)
                 if not drone.exploding then drone:tickMotorAudio() end
+                if sp:tick(drone) then
+                    -- Shot down by police -- crash in place.
+                    drone.lastCollisionKind = 'crash'
+                    drone:crash({pos = {drone.pos.x, drone.pos.y, drone.pos.z}}, recorder)
+                end
                 if drone.exploding then
                     -- Wreck just sits there with the FX already played;
                     -- camera was already pointed at it in Drone:crash().
@@ -156,7 +171,7 @@ function main()
                     drone:applyTransform()
                     drone:applyStickDebugCandidate(drone.stickCandidateIndex)
                     camera.update()
-                    recorder:captureFrame(drone, receiver.connected)
+                    recorder:captureFrame(drone, receiver.connected, receiver)
                 else
                     local prevPos = {x = drone.pos.x, y = drone.pos.y, z = drone.pos.z}
                     drone:updatePhysics(dt, receiver)
@@ -168,40 +183,97 @@ function main()
                     end
                     if hit then
                         drone.collisionHitCount = drone.collisionHitCount + 1
-                        -- Belly = the underside of the drone's own local
-                        -- frame -- always survives, no speed check. Anything
-                        -- else crashes at speed, or a slow bump just knocks
-                        -- it back a bit instead. See docs/collision.md.
-                        local impactPos = {x = colPoint.pos[1], y = colPoint.pos[2], z = colPoint.pos[3]}
-                        local belowCenter = vecmath.vDot(vecmath.vSub(impactPos, drone.pos), drone.up) < 0
-                        local speed = vecmath.vLen(drone.vel)
-                        if belowCenter then
-                            drone.lastCollisionKind = 'belly'
+                        -- Belly = the hit surface faces the drone's underside:
+                        -- its normal points along the drone's own up axis
+                        -- (within ~45 deg). Classified by the surface NORMAL,
+                        -- not by where the impact point sits relative to
+                        -- drone.pos -- by the time the ray reports a hit,
+                        -- drone.pos has already moved past the surface, which
+                        -- puts the impact point on the wrong side of it and
+                        -- inverts any position-based test. See docs/collision.md.
+                        local n = {x = colPoint.normal[1], y = colPoint.normal[2], z = colPoint.normal[3]}
+                        local bellyHit = vecmath.vDot(n, drone.up) > 0.7
+                        -- Impact severity = the velocity component INTO the
+                        -- surface, not total speed -- grazing a wall or pole
+                        -- while moving mostly parallel to it is a scrape, not
+                        -- a crash. Belly contact never crashes at any speed.
+                        local intoSurface = -vecmath.vDot(drone.vel, n)
+                        if not bellyHit and intoSurface >= cfg.crash_prop_speed and cfg.indestructible then
+                            -- Rubber mode: a crash-grade impact reflects the
+                            -- velocity off the surface instead of exploding,
+                            -- keeping bounce_restitution of the approach speed.
+                            drone.lastCollisionKind = 'bounce'
+                            local vn = vecmath.vDot(drone.vel, n)
+                            drone.vel = vecmath.vSub(drone.vel, vecmath.vScale(n, (1 + cfg.bounce_restitution) * vn))
                             drone.pos = prevPos
-                            drone.vel = {x = 0, y = 0, z = 0}
-                            drone.thrust = 0
-                            drone.angRate = {p = 0, q = 0, r = 0}
-                            drone.grounded = true
-                            drone:applyTransform()
-                            recorder:captureFrame(drone, receiver.connected)
-                        elseif speed >= cfg.crash_prop_speed then
-                            drone.lastCollisionKind = 'crash'
-                            drone:crash(colPoint, recorder)
-                        else
-                            drone.lastCollisionKind = 'bump'
-                            drone.pos = prevPos
-                            drone.vel = {x = 0, y = 0, z = 0}
                             drone:applyTransform()
                             drone:applyStickDebugCandidate(drone.stickCandidateIndex)
                             camera.update()
-                            recorder:captureFrame(drone, receiver.connected)
+                            recorder:captureFrame(drone, receiver.connected, receiver)
+                        elseif not bellyHit and intoSurface >= cfg.crash_prop_speed then
+                            drone.lastCollisionKind = 'crash'
+                            drone:crash(colPoint, recorder)
+                        else
+                            -- Surviving contact: kill the approach velocity
+                            -- (the normal component, only when directed INTO
+                            -- the surface -- movement away must never be
+                            -- stripped, or climbing off the surface becomes
+                            -- impossible), keep the tangential one with
+                            -- friction, and let the frame's own displacement
+                            -- continue along the surface -- the drone skids
+                            -- like a real quad on its belly instead of
+                            -- stopping dead. A belly slide below
+                            -- slide_stop_speed settles into the grounded
+                            -- resting state.
+                            local slideFactor = math.exp(-cfg.slide_friction * dt)
+                            local vn = vecmath.vDot(drone.vel, n)
+                            if vn < 0 then
+                                drone.vel = vecmath.vSub(drone.vel, vecmath.vScale(n, vn))
+                            end
+                            drone.vel = vecmath.vScale(drone.vel, slideFactor)
+                            local disp = vecmath.vSub(drone.pos, prevPos)
+                            local dn = vecmath.vDot(disp, n)
+                            if dn < 0 then
+                                disp = vecmath.vSub(disp, vecmath.vScale(n, dn))
+                            end
+                            local newPos = vecmath.vAdd(prevPos, vecmath.vScale(disp, slideFactor))
+                            -- Hold the center at the same clearance the ray
+                            -- spread detects contact at. Between collision
+                            -- ticks a slide sinks by gravity micro-steps too
+                            -- small to cross the surface and fire a hit, and
+                            -- each such tick permanently lowers the baseline --
+                            -- without this push-out the drone ratchets a few
+                            -- mm per tick down through the texture and ends up
+                            -- resting visibly sunk into the ground.
+                            local clearance = cfg.collision_radius * cfg.profile.model_scale
+                            local colPos = {x = colPoint.pos[1], y = colPoint.pos[2], z = colPoint.pos[3]}
+                            local depth = vecmath.vDot(vecmath.vSub(newPos, colPos), n)
+                            if depth < clearance then
+                                newPos = vecmath.vAdd(newPos, vecmath.vScale(n, clearance - depth))
+                            end
+                            drone.pos = newPos
+                            if bellyHit and vecmath.vLen(drone.vel) < cfg.slide_stop_speed then
+                                drone.lastCollisionKind = 'belly'
+                                drone.vel = {x = 0, y = 0, z = 0}
+                                drone.thrust = 0
+                                drone.angRate = {p = 0, q = 0, r = 0}
+                                drone.grounded = true
+                                drone:applyTransform()
+                                recorder:captureFrame(drone, receiver.connected, receiver)
+                            else
+                                drone.lastCollisionKind = 'slide'
+                                drone:applyTransform()
+                                drone:applyStickDebugCandidate(drone.stickCandidateIndex)
+                                camera.update()
+                                recorder:captureFrame(drone, receiver.connected, receiver)
+                            end
                         end
                     else
                         drone.lastCollisionKind = 'none'
                         drone:applyTransform()
                         drone:applyStickDebugCandidate(drone.stickCandidateIndex)
                         camera.update()
-                        recorder:captureFrame(drone, receiver.connected)
+                        recorder:captureFrame(drone, receiver.connected, receiver)
                     end
                 end
             end
@@ -212,7 +284,7 @@ end
 function onD3DPresent()
     osd:drawDebugOverlay(drone, cfg, receiver, recorder)
     if drone.spawned then
-        osd:draw(drone, cfg, receiver)
+        osd:draw(drone)
         osd:drawSignalInterference(drone)
     end
 end
@@ -221,6 +293,7 @@ function onScriptTerminate(script, quitGame)
     if script == thisScript() then
         if player:isActive() then player:stop() end
         if drone.spawned then drone:despawn() end
+        sp:onDespawn()
         if ui.cfgDirty then configObj:save() end
         receiver:close()
         audio:shutdown()

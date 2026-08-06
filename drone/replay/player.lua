@@ -221,6 +221,7 @@ function Player:syncOsdTelemetry(osd, fr)
     t.ceiling = fr.ceiling
     t.windZ = fr.windZ
     t.accelZ = fr.accelZ
+    t.stickRoll, t.stickPitch, t.stickYaw, t.stickThrottle = fr.stickRoll, fr.stickPitch, fr.stickYaw, fr.stickThrottle
     t.profileName = self.profileName
     t.profileMass = self.profileMass
     t.profileMaxThrust = self.profileMaxThrust

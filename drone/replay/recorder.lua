@@ -5,6 +5,7 @@
 local ffi = require 'ffi'
 local Class = require 'class'
 local fmt = require 'replay.format'
+local vecmath = require 'vecmath'
 
 local Recorder = Class('Recorder')
 
@@ -107,8 +108,10 @@ function Recorder:stop()
 end
 
 -- drone: drone.Drone. connected: net.Receiver.connected (or true for a
--- single crash-frame capture, see drone/collision.lua).
-function Recorder:captureFrame(drone, connected)
+-- single crash-frame capture, see drone/collision.lua). receiver: net.
+-- Receiver, for the raw stick values (nil for the crash-frame capture --
+-- the wreck is static, sticks don't matter for it).
+function Recorder:captureFrame(drone, connected, receiver)
     if not self.recording then return end
     self:ensureBuffer()
     local cfg = self.cfg
@@ -127,6 +130,15 @@ function Recorder:captureFrame(drone, connected)
     f.ceiling = dbg.ceiling
     f.windZ = dbg.windZ
     f.accelZ = dbg.accelZ
+    if receiver then
+        local calib, axesRaw = cfg.calib, receiver.axesRaw
+        f.stickRoll = vecmath.axisBi(calib, axesRaw, cfg.axis_roll)
+        f.stickPitch = vecmath.axisBi(calib, axesRaw, cfg.axis_pitch)
+        f.stickYaw = vecmath.axisBi(calib, axesRaw, cfg.axis_yaw)
+        f.stickThrottle = vecmath.axisUni(calib, axesRaw, cfg.axis_throttle)
+    else
+        f.stickRoll, f.stickPitch, f.stickYaw, f.stickThrottle = 0, 0, 0, 0
+    end
     -- bits: 0=armed 1=grounded 2=exploding 3=connected 4-5=flight_mode(0..2) 6=throttle_3d
     local modeVal = 0
     if cfg.flight_mode == 'LEVEL' then modeVal = 1 elseif cfg.flight_mode == 'HORIZON' then modeVal = 2 end

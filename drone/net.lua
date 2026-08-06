@@ -14,6 +14,15 @@ local Receiver = Class('Receiver')
 -- list and can no longer be auto-selected -- see docs/controller-bridge.md.
 local DEVICE_STALE_SEC = 3.0
 
+-- Subscription model: the daemon owns the one well-known port (cfg.port);
+-- this receiver binds an EPHEMERAL port (the OS picks a free one, so any
+-- number of game instances can run at once -- SAMP + singleplayer etc.)
+-- and keeps itself subscribed by sending this magic to the daemon every
+-- SUBSCRIBE_INTERVAL_SEC. The daemon streams packets back to every
+-- subscriber it heard from recently. See docs/controller-bridge.md.
+Receiver.SUBSCRIBE_MAGIC = 'TXSUB'
+Receiver.SUBSCRIBE_INTERVAL_SEC = 1.0
+
 function Receiver:init(cfg)
     self.cfg = cfg
     self.udp = nil
@@ -31,13 +40,14 @@ function Receiver:init(cfg)
     -- ui.lua's Controller picker and by :effectiveSelection() below.
     self.devices = {}
     self.effectiveDeviceId = nil -- device currently driving axesRaw/buttonsRaw (auto or manually pinned)
+    self.lastSubClock = -1000 -- last time the TXSUB keepalive went out
 end
 
 function Receiver:open()
     if self.udp then self.udp:close(); self.udp = nil end
     if not socketlib then return false, 'luasocket missing' end
     self.udp = socketlib.udp()
-    local ok, err = self.udp:setsockname('127.0.0.1', self.cfg.port)
+    local ok, err = self.udp:setsockname('127.0.0.1', 0) -- ephemeral -- the daemon replies to whatever port the OS picked
     if not ok then
         self.udp:close()
         self.udp = nil
@@ -65,6 +75,16 @@ end
 
 function Receiver:poll()
     if not self.udp then return end
+
+    -- Keepalive doubles as the initial subscription -- the daemon prunes
+    -- subscribers it hasn't heard from in a few seconds, so there's no
+    -- separate connect/disconnect handshake to get wrong.
+    local now = os.clock()
+    if now - self.lastSubClock >= Receiver.SUBSCRIBE_INTERVAL_SEC then
+        self.lastSubClock = now
+        self.udp:sendto(Receiver.SUBSCRIBE_MAGIC, '127.0.0.1', self.cfg.port)
+    end
+
     local latestByDevice = {} -- deviceId -> most recent packet this poll(), see below
     for _ = 1, 64 do
         local data = self.udp:receive()

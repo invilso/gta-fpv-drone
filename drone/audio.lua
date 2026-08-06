@@ -18,20 +18,37 @@ end
 function MotorAudio:load()
     if not self.cfg.audio_enabled then return end
     local ok_bass, bassLib = pcall(require, 'bass')
-    if not ok_bass or not bassLib then return end
-    if not doesFileExist(MOTOR_WAV_PATH) then return end -- shipped in the repo, offline-generated, see docs/audio.md
+    if not ok_bass or not bassLib then
+        print('motor audio disabled: lib/bass.lua failed to load: ' .. tostring(bassLib))
+        return
+    end
+    if not doesFileExist(MOTOR_WAV_PATH) then -- shipped in the repo, offline-generated, see docs/audio.md
+        print('motor audio disabled: missing ' .. MOTOR_WAV_PATH)
+        return
+    end
 
     -- BASS's output device is process-wide -- see docs/audio.md. BASS_ERROR_ALREADY
     -- means some other script already initialized it, which is fine.
     local initOk = bassLib.BASS_Init(-1, 44100, 0, nil, nil)
-    if initOk == 0 and bassLib.BASS_ErrorGetCode() ~= BASS_ERROR_ALREADY then return end
+    if initOk == 0 then
+        local err = bassLib.BASS_ErrorGetCode()
+        if err ~= BASS_ERROR_ALREADY then
+            print('motor audio disabled: BASS_Init failed, error code ' .. tostring(err))
+            return
+        end
+    end
 
     local stream = bassLib.BASS_StreamCreateFile(false, MOTOR_WAV_PATH, 0, 0, BASS_SAMPLE_LOOP)
-    if stream == 0 then return end
+    if stream == 0 then
+        print('motor audio disabled: BASS_StreamCreateFile failed, error code '
+            .. tostring(bassLib.BASS_ErrorGetCode()) .. ', path ' .. MOTOR_WAV_PATH)
+        return
+    end
 
     self.bass = bassLib
     self.stream = stream
     self.ok = true
+    print('motor audio ready')
 end
 
 function MotorAudio:start()
