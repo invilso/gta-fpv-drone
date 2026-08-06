@@ -64,8 +64,23 @@ OSD). No flight/replay/UI logic lives here.
   protection during flight, police shoot-down damage watch, population
   density/limit boost. Every effect is a no-op in SAMP.
 - **`drone/font.lua`** — one-time auto-download and hot-swap of the menu font.
-- **`drone/ui.lua`** (`UI`) — the mimgui settings window (profiles, general
-  settings including the controller picker, and the replay browser/player controls).
+- **`drone/ui.lua`** (`UI`) — the settings menu: glass window with a
+  drone-status bar on top, macOS-style dock navigation, profile cards with
+  import/export, first-run wizard (calibration + deadzone), settings
+  search, and the auto-hiding replay player overlay.
+- **`drone/theme.lua`** — the menu's visual language: accent presets,
+  glass palette, animation easing.
+- **`drone/i18n.lua`** — EN/UA UI strings.
+- **`drone/sections.lua`** — declarative row specs for the menu's settings
+  sections; also feeds the search index.
+- **`drone/icons.lua`** — PNG-tile icon textures (generated offline by
+  `resources/icons/generate.py`, Pillow).
+- **`drone/osd2.lua`** (`OSD2`) — three of the four OSD styles: Skyline
+  (clean white HD), Recon (mono green, analog-camera), Circuit (race-sim
+  grid/crosshair/boxed readouts) — artificial horizon, speed/altitude
+  tapes, heading, home arrow, stick boxes, HP indicator, REC/status
+  banners. `osd_style = 'classic'` keeps the original text OSD from
+  `osd.lua` instead.
 
 ## Data flow per tick
 

@@ -72,13 +72,13 @@ function Drone:updatePhysics(dt, receiver)
     -- thrust pushes along -up, letting the drone hold altitude
     -- upside-down. See docs/physics.md.
     local throttleTarget = 0.0
-    if receiver.connected then
+    if receiver.connected and self.armed then
         throttleTarget = cfg.throttle_3d and vecmath.axisBi(calib, axesRaw, cfg.axis_throttle)
             or vecmath.axisUni(calib, axesRaw, cfg.axis_throttle)
     end
 
-    if not receiver.connected then
-        -- failsafe: cut throttle, let it fall -- no auto-hover/auto-land
+    if not receiver.connected or not self.armed then
+        -- failsafe/disarm: motors dead, let it fall -- no auto-hover/auto-land
         roll, pitch, yaw = 0, 0, 0
     end
 

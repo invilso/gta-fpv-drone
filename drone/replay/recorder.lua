@@ -41,14 +41,23 @@ local function scanOrderCompare(a, b) return scanBuf[a].dist < scanBuf[b].dist e
 -- index n+1. Distance-sorted truncation happens once, after all three kinds
 -- are collected, not here -- otherwise a busy scene could lose nearby
 -- vehicles to a first-scanned kind eating the whole cap.
+-- The flight's own actors must never be captured as background entities:
+-- the drone's vehicle and the player ped riding it sit AT the drone's
+-- position, so their proxies play back as a ghost copy of the drone (a
+-- second heli with a ped hanging under it, placed by heading only).
+-- Keyed per pool -- vehicle and ped handles can collide numerically.
+-- Cleared and refilled by captureFrame each call.
+local excludedVehicles, excludedChars = {}, {}
+
 local function scanKind(findFn, getCoordsFn, getHeadingFn, getModelFn, kind, n, px, py, pz, radius)
     if not findFn then return n end
+    local excluded = (kind == 1) and excludedVehicles or (kind == 2) and excludedChars or nil
     local findNext = false
     for _ = 1, SCAN_CAP do
         local ok, found, handle = pcall(findFn, px, py, pz, radius, findNext, false)
         if not ok or not found then break end
         findNext = true
-        if handle and n < #scanBuf then
+        if handle and not (excluded and excluded[handle]) and n < #scanBuf then
             -- Type-checked, not just pcall-checked -- see docs/replay.md.
             local ok2, x, y, z = pcall(getCoordsFn, handle)
             if ok2 and type(x) == 'number' and type(y) == 'number' and type(z) == 'number' then
@@ -115,6 +124,12 @@ function Recorder:captureFrame(drone, connected, receiver)
     if not self.recording then return end
     self:ensureBuffer()
     local cfg = self.cfg
+
+    for k in pairs(excludedVehicles) do excludedVehicles[k] = nil end
+    for k in pairs(excludedChars) do excludedChars[k] = nil end
+    if drone.obj then excludedVehicles[drone.obj] = true end
+    excludedChars[PLAYER_PED] = true
+    if drone.decoyPed then excludedChars[drone.decoyPed] = true end
     local f = self.buf[self.writeIdx]
     f.timestamp = os.clock()
     f.px, f.py, f.pz = drone.pos.x, drone.pos.y, drone.pos.z
@@ -239,6 +254,54 @@ function Recorder.listFiles()
     -- chronological, descending so the newest flight is on top.
     table.sort(files, function(a, b) return a > b end)
     return files
+end
+
+-- Seconds of flight currently held in the ring buffer (newest minus oldest
+-- timestamp) -- what the OSD's REC counter shows. Once the ring wraps this
+-- plateaus at the buffer's real time window.
+function Recorder:bufferedSeconds()
+    if self.count == 0 or not self.buf then return 0 end
+    local newest = self.buf[(self.writeIdx - 1) % self.capacity].timestamp
+    local oldest = (self.count < self.capacity)
+        and self.buf[0].timestamp
+        or self.buf[self.writeIdx].timestamp
+    return newest - oldest
+end
+
+-- Size + duration for the library listing, without loading the whole file:
+-- header, then just the first and last frames' leading double (timestamp).
+-- Returns nil for unreadable files; durationSec is 0 for files whose
+-- version/frameSize doesn't match the current format (still listed, the
+-- player itself reports the incompatibility on Play).
+function Recorder.fileInfo(name)
+    local f = io.open(REPLAY_DIR .. '\\' .. name, 'rb')
+    if not f then return nil end
+    local info = {size = f:seek('end') or 0, durationSec = 0}
+    local hdrSize = ffi.sizeof('replay_header_t')
+    f:seek('set', 0)
+    local hdr = f:read(hdrSize)
+    if hdr and #hdr == hdrSize then
+        local h = ffi.cast('const replay_header_t*', hdr)
+        local frameCount, frameSize = h.frameCount, h.frameSize
+        if frameCount > 0 and frameSize == ffi.sizeof('replay_frame_t') then
+            f:seek('set', hdrSize)
+            local ts0 = f:read(8)
+            f:seek('set', hdrSize + (frameCount - 1) * frameSize)
+            local ts1 = f:read(8)
+            if ts0 and ts1 and #ts0 == 8 and #ts1 == 8 then
+                info.durationSec = ffi.cast('const double*', ts1)[0]
+                    - ffi.cast('const double*', ts0)[0]
+            end
+        end
+    end
+    f:close()
+    return info
+end
+
+function Recorder.deleteFile(name)
+    local ok, err = os.remove(REPLAY_DIR .. '\\' .. name)
+    if not ok then print('failed to delete replay ' .. name .. ': ' .. tostring(err)) end
+    return ok
 end
 
 Recorder.DIR = REPLAY_DIR

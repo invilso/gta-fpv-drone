@@ -1,8 +1,8 @@
 # Settings guide
 
-Everything in the in-game menu, tab by tab. Open the menu by typing the
-menu cheat phrase (`CFGD` by default, rebindable — see General → Cheat
-phrases below).
+Everything in the in-game menu, section by section. Open it by typing the
+menu cheat phrase (`CFGD` by default, rebindable — see Controller → Buttons
+below).
 
 ## Default controls
 
@@ -10,278 +10,191 @@ phrases below).
 |---|---|
 | Spawn/despawn drone | type `DRONE` |
 | Open settings menu | type `CFGD` |
+| Arm/disarm motors | `X` |
 | Recall (teleport drone back to you) | `R` |
 | Cycle ACRO/LEVEL/HORIZON | `M` |
 | Toggle 3D throttle | `N` |
 | Save current flight replay | `J` |
 
-Every keybind and both cheat phrases are rebindable from the menu — see below.
+Every keybind and both cheat phrases are rebindable from the menu — see
+Controller → Buttons below.
 
-## Profiles tab
+## Finding your way around
 
-A **profile** is a full set of physics numbers for one "aircraft" — you can
-have several (a nimble whoop, a fast racer, a heavy hauler, whatever) and
-switch between them without losing any of them.
+- **Status bar** (top): the red dot closes the menu. Next to it, the
+  current flight state (Standby / Flying / Landed / Crashed / Replay).
+  Center shows the active flight mode and profile. On the right: your
+  connected controller's name (or "No controller"), an EN/UA language
+  switch, and the **Expert** toggle — off by default, it hides the deeper
+  physics/timing settings so the menu isn't overwhelming; flip it on for
+  full control. Custom profiles show their physics editor regardless of
+  this toggle, since editing them is the point.
+- **Dock** (bottom): eight sections — Fly, Controller, Camera, World,
+  Audio, OSD, Replay, Advanced. Hover to magnify and see the name, click
+  to switch.
+- **Search** (top of the content area): type 2+ characters and every
+  matching setting across all sections lists here — click one to jump to
+  its section.
+- **First-run setup wizard**: opens automatically the first time you open
+  the menu on a fresh install. Walks through language, controller
+  detection, stick calibration, and a **graphical deadzone step** — watch
+  the dots on screen while your sticks are at rest; if they drift outside
+  the circle, raise the deadzone until they settle. This step matters:
+  skipping it is the most common cause of a drone that slowly spins on its
+  own in ACRO mode. Then key/button bindings and a starting profile. Every
+  step is skippable, and you can re-run the whole thing later from
+  OSD → Appearance → **Run setup wizard**.
 
-- **Profile list**: click a name to make it the active profile.
-- **New**: creates a fresh profile with default values, under a name you type.
-- **Duplicate**: copies the currently active profile under a new name — the
-  easiest way to make a variant of one you like without editing it directly.
-- **Rename**: renames the active profile.
-- **Delete**: removes the active profile (blocked if it's the only one left).
+## Fly
 
-### Physics sliders (apply to whichever profile is active)
+- **Drone profiles**: four built-in cards — **Standard** (balanced
+  all-rounder), **Whoop** (tiny, gentle, indoor-scale), **Racer** (fast,
+  twitchy), **Heavy** (big, stable, cinematic). Click **Select** to fly
+  one. Every card has a duplicate button (⧉); duplicating creates an
+  editable custom profile, shown in its own scrollable row below the
+  built-ins with its own icon. Custom profile cards additionally get a
+  share button (import/export as text — see below), a rename (pencil),
+  and delete (X).
+- **Sharing profiles**: the share button opens a text box containing the
+  profile as JSON. Copy it (Ctrl+A, Ctrl+C) to send to someone; paste a
+  friend's text in and hit **Apply** to adopt their tune. Built-in
+  profiles are export-only (they're the reference set) — duplicate one
+  first if you want to import into it.
+- **Flight mode**: ACRO (full manual rate control, no self-leveling — how
+  real FPV quads fly) / LEVEL (stick = tilt angle, releases to level
+  itself — easiest) / HORIZON (LEVEL near stick center, full ACRO flips at
+  the edges).
+- **3D throttle**: stick center = hover, bottom half = downward thrust —
+  inverted-flight capable, like real acro quads.
+- **Profile physics** (Expert, or always on a custom profile): mass,
+  max thrust, gravity, motor lag, rotation lag, max rate, stick expo,
+  deadzone, model scale (collision-only), ground/ceiling effect strength
+  and radius, plus linear and quadratic drag per axis (forward/right/up).
+  Changes apply live — feel the difference mid-flight.
 
-- **Mass**: heavier drones accelerate less for the same thrust and feel more
-  stable in wind/turbulence; lighter drones feel twitchier.
-- **Max thrust**: full-throttle acceleration along the drone's up axis. This
-  relative to Mass is what determines how "overpowered" the drone feels —
-  a low thrust-to-mass ratio can't even hover.
-- **Gravity**: how hard it falls. Higher gravity needs more thrust to
-  compensate; mostly for making an unusual profile (very heavy, or
-  deliberately floaty) rather than something you'd normally touch.
-- **Drag lin/quad fwd/right/up**: air resistance along each of the drone's
-  own three axes (forward, sideways, up), split into a linear term (matters
-  most at low speed) and a quadratic term (matters most at high speed and
-  sets your effective top speed). Keeping `up` drag lower than `fwd`/`right`
-  is what makes the drone fall close to real free-fall speed while still
-  feeling draggy/stable flying sideways — see `drone/docs/physics.md` if
-  you want the full reasoning before changing these.
-- **Motor tau**: how many seconds it takes the motors to spool from one
-  throttle level to another. Small values (real FPV territory) feel snappy;
-  large values feel mushy/laggy on throttle changes.
-- **Angular tau**: same idea but for how fast the drone's rotation rate
-  catches up to what the stick is asking for — small values snap into
-  rotation, large values feel like they have rotational inertia/momentum.
-- **Rate max**: the fastest the drone can rotate (degrees/second) at full
-  stick deflection in ACRO mode.
-- **Expo**: how much the stick response curves near center — higher expo
-  means small stick movements near center are gentler (finer control),
-  while full deflection is unchanged.
-- **Deadzone**: how far you have to move a stick from center before it
-  registers at all — raise this if your stick doesn't rest exactly at
-  center (drift).
-- **Model scale (collision only)**: does not resize the visible model
-  (not currently possible — see `drone/docs/orientation.md`), only shrinks
-  or grows the collision check's ray spread, i.e. how much clearance you
-  need to fit through a gap.
-- **Ground/ceiling effect strength/radius**: an upward push near the ground
-  and a "suction" toward a low ceiling, both fading out with distance —
-  strength is how strong the push is right at the surface, radius is how
-  far away it starts being felt.
+## Controller
 
-## General tab
+- **Device picker**: lists every controller the bridge daemon sees, plus
+  "Auto" (picks the lowest-numbered live device). Switch anytime, even
+  mid-flight.
+- **Axes**: which controller axis (1-8) drives roll/pitch/throttle/yaw,
+  each with a **live preview bar** next to it — wiggle the stick and watch
+  the dot move, so the mapping is instantly verifiable. Invert toggles for
+  pitch and yaw.
+- **Arming**: "Require throttle at idle to spawn" (on by default, a real
+  safety habit — no takeoff with the throttle already up) and its idle
+  threshold (Expert).
+- **Buttons**: every bindable action, each as a key AND a controller
+  button/switch, both fire the bound action:
+  - **Arm/disarm motors** — the classic FPV kill switch. Disarming
+    mid-air cuts the motors instantly and the drone drops; re-arming goes
+    through the same throttle-at-idle check as spawning. Bind an RC
+    transmitter switch here for the authentic feel.
+  - **Recall drone** — teleports it back to you.
+  - **Cycle flight mode**, **3D throttle toggle**, **save flight
+    recording** (key only for the last one).
 
-### Connection
+  To bind: click the button, then either press a key or move a
+  controller button/switch. RC transmitter switches usually arrive as
+  axis jumps rather than button presses — the bridge detects this
+  automatically and shows it as e.g. `A5+`/`A5-`. Click a controller bind
+  a second time to clear it.
+- **Connection** (Expert): the bridge daemon's port (restart the script
+  after changing) and the failsafe timeout — no packets for this long and
+  the drone treats it as signal loss.
+- **Calibration**: click **Start calibration**, sweep every stick to its
+  full range, then finish with the sticks centered. Live bars show each
+  axis's tracked min/max/current position while you sweep.
 
-- **UDP port**: the bridge daemon's port. The drone doesn't listen on it —
-  it subscribes to the daemon there and receives the stream on its own
-  automatically-assigned port, so several game instances (SAMP +
-  singleplayer at once) all get controller input with no extra setup
-  (paired with the controller bridge's own `--ports` setting). Changing this
-  only takes effect after restarting the script.
-- **Failsafe timeout, ms**: how long without a fresh packet from the
-  controller before the drone treats it as "signal lost" and cuts throttle
-  to zero (falls, doesn't hover). Don't set this too low — a little UDP
-  packet loss is normal even on localhost.
+## Camera
 
-### Controller
+- **Spawn distance ahead** / **Spawn height**: where the drone appears
+  relative to you.
+- **Camera mount forward/up** (Expert): the FPV camera's position along
+  the drone's body.
+- **Camera tilt**: downward tilt in degrees, like a real FPV rig. Hold the
+  Up/Down arrow keys in flight to adjust it smoothly, in fractions of a
+  degree, mid-air.
 
-Live list of every connected controller the bridge daemon can see, with an
-**Auto** entry. With one controller connected, Auto uses it automatically;
-with several, Auto picks one and you can override the pick from this list
-any time. See `drone/docs/controller-bridge.md` for how device selection
-actually works under the hood.
+## World
 
-### Cheat phrases
+Everything here is singleplayer-only — all no-ops in SA-MP (the drone is
+purely client-side there, and SA-MP has no police AI or population system
+to hook into).
 
-- **Spawn/despawn phrase**: the chat/console phrase that spawns or despawns
-  the drone (`DRONE` by default).
-- **Menu phrase**: the phrase that opens this settings window (`CFGD` by default).
+- **Police**: "Police can shoot the drone down" (bullet damage only — the
+  drone stays proofed against fire/explosion/collision from its own
+  physics) with a toughness slider (the damage pool before it goes down).
+  Wanted stars accrue naturally from crash explosions, and — since your
+  character is technically piloting it — the police chase the drone
+  itself, not you.
+- **Crash explosion**: which real GTA explosion type a crash triggers
+  (Grenade, Rocket, Car, Tank shell, RC vehicle, ...) — each has its own
+  blast radius and force, and genuinely damages nearby peds/vehicles/you.
+- **Streets stay alive**: ped/traffic density multipliers while the drone
+  is flying, and "No despawn around the drone" (with a radius) — pins
+  nearby peds/cars against the engine's normal off-screen removal, so
+  streets don't empty out the instant you look away at speed. "Boost
+  engine population limits" (Expert) additionally raises the game's
+  hard caps on simultaneously-live peds/cars (engine defaults 25/30) for
+  the duration of the flight.
+- **Wind**: on/off, direction, steady strength, and gust turbulence.
+- **Signal interference** (visual only, controls keep working): clean
+  range around the pilot, and the range at which it's full static.
 
-### Keybinds
+## Audio
 
-- **Recall** (keyboard key and/or controller button — both bindable,
-  whichever fires first works): teleports the drone instantly back to you,
-  resetting its velocity and rotation — an emergency "get me out of here"
-  button, not a precision maneuver.
+- **Enabled**, **max volume** (values above 1.0 amplify past the recorded
+  level), **audible range**, and (Expert) the motor's pitch at idle vs.
+  full throttle.
 
-### Arm
+## OSD
 
-- **Require idle throttle to arm**: if enabled (default), the throttle
-  stick must be near zero at the moment you spawn, mirroring a real
-  transmitter's arm safety — prevents the drone launching itself the
-  instant it appears because your stick was already pushed up.
-- **Arm throttle max**: how close to zero "near zero" means, above.
-- **Liftoff throttle min**: after a soft landing (the drone is resting,
-  ignoring stick input in its `grounded` state), how much throttle you need
-  to apply before it's willing to take off again.
+- **Style**, four to choose from:
+  - **Classic** — the original text readout.
+  - **Skyline** — clean white HD: artificial horizon with pitch ladder,
+    speed/altitude tapes with vario, heading compass, home arrow +
+    distance + flight timer, stick position boxes.
+  - **Recon** — the same layout, mono green, analog-camera look.
+  - **Circuit** — race-sim style: center grid, crosshair reticle, boxed
+    corner readouts, a millisecond-precision timer.
 
-### Axis assignment
+  All styles show a blinking REC indicator with the buffered recording
+  length while the flight recorder is capturing, status banners
+  (DISARMED / FAILSAFE / LANDED / CRASHED / REPLAY), and — whenever
+  police can shoot the drone down — a color-coded HP readout (a small
+  drone icon that shifts green → yellow → red as damage accumulates).
+- **Appearance**: accent color presets for the menu itself, dock icon
+  style (color or mono glass), **Debug lines** (bottom-right on-screen
+  physics/collision telemetry for tuning and troubleshooting — off by
+  default, meant for development, not everyday flying), and the
+  **Run setup wizard** button to redo the first-run flow anytime.
 
-- **Roll/Pitch/Throttle/Yaw axis**: which of your controller's 8 raw axis
-  channels (1-8) maps to each flight control. Match these to your specific
-  transmitter/gamepad's actual channel order.
-- **Invert pitch/yaw**: flips the direction of that axis if it feels backwards.
-- **Calibration**: click an axis button (A1-A8), move that stick through
-  its full range, then click **Finish** while the stick is centered — this
-  records the real min/center/max values your hardware reports, so the
-  normalized -1..1 (or 0..1 for throttle) range is accurate even if your
-  controller doesn't report a perfectly centered/symmetric raw range.
+## Replay
 
-### Spawn / camera mount
+- **Recording** (Expert): ring buffer size in frames (bigger = longer
+  recordings, more RAM), max entities recorded per frame, and the capture
+  radius around the drone.
+- **Saved flights**: shows the buffered flight's frame count with a
+  **Save** button (also bound to the save key above), a file list with
+  each recording's length and size, a total files/space counter, **Play**
+  (starts it immediately, opens the video-style player), and a delete
+  button per file.
+- **Player overlay**: while a replay is running, the menu is replaced by
+  an auto-hiding player bar (shows on mouse movement or while paused,
+  fades after idling) with a scrub bar, play/pause, speed presets
+  (0.25x-2x), frame-step buttons, and Stop. Hotkeys work whether the bar
+  is visible or not: Space (pause), Left/Right (±5s), Up/Down (speed),
+  `,`/`.` (frame step).
 
-- **Spawn offset forward/up**: where the drone appears relative to you when
-  it spawns — needs to be far enough forward that its collision box doesn't
-  overlap yours and launch you.
-- **Camera mount forward/up**: reserved for future FPV camera-mount
-  positioning (currently not wired into the render path).
-- **Camera tilt**: downward camera tilt in degrees, like a real FPV rig's
-  camera angle — positive values tilt the view down.
+## Advanced
 
-### Collision / crash
-
-- **Collision ray spread**: how wide a margin around the drone counts as a
-  hit — wider means safer (harder to clip through thin gaps) but also less
-  forgiving of tight spaces.
-- **Crash speed threshold (into surface)**: hitting anything other than the
-  drone's underside destroys it when the velocity *into* the surface is at
-  or above this — a grazing scrape along a wall at speed doesn't count,
-  only how hard you actually hit it. Below the threshold the drone scrapes
-  and slides instead. A belly hit *always* survives regardless of speed —
-  matches a real "landed" touchdown.
-- **Indestructible (bounce instead of crash)**: rubber mode — impacts hard
-  enough to destroy the drone bounce it off the surface instead. Off by
-  default.
-- **Bounce restitution**: how bouncy the rubber mode is — the fraction of
-  the impact speed thrown back off the surface (1.0 = perfectly elastic,
-  0.0 = just stops against the wall).
-- **Slide friction**: how quickly a surviving contact bleeds off speed
-  while skidding along a surface (higher = stops sooner). The drone slides
-  on its belly like a real quad instead of stopping dead where it touched
-  down.
-- **Slide full-stop speed**: once a belly slide gets slower than this, the
-  drone settles into the resting (grounded) state and waits for throttle
-  (see **Liftoff throttle min**) to take off again.
-- **Crash FX particle name**: which particle effect plays on crash
-  (SAMP — visual only, no real explosion; see below).
-- **SP explosion type**: in singleplayer only, a crash triggers a real
-  `addExplosion` of the chosen GTA explosion type (Grenade, Rocket, Car,
-  Tank shell...) — it genuinely damages nearby peds, vehicles and you,
-  with each type's own blast radius and force. In SA-MP, crashes are
-  visual-only (the drone is fully client-side).
-- **Crash cooldown, ms**: minimum time after a crash before you (or
-  auto-respawn) can spawn a new drone.
-- **Crash view delay, ms**: how long the camera holds an external view of
-  the wreck before returning control to you.
-- **Auto-respawn after crash**: automatically spawns a fresh drone at your
-  location once the cooldown elapses, instead of requiring a manual
-  spawn-phrase retype.
-
-### Singleplayer (no effect in SAMP)
-
-Wanted stars accrue naturally — the SP crash explosion is a real
-`addExplosion`, so crashing near police (or witnesses) raises your wanted
-level the same way any explosion does, and police then chase the drone
-itself (your character is technically flying it). While the drone is
-spawned, your character is protected from its own crash explosion and from
-being busted, so a wanted chase can't end the game mid-flight.
-
-- **Police can shoot the drone down**: police fire damages the drone;
-  enough accumulated hits crash it on the spot, wherever it is.
-- **Drone health**: the damage pool while shoot-downable. Stock GTA
-  vehicles have 1000 — the oversized default stands in for how hard a
-  small, fast target is to actually hit.
-- **Ped density / Traffic density while flying**: population multipliers
-  applied while the drone is spawned (restored to normal on despawn) — turn
-  these up to make flyover streets feel alive.
-- **Boost population limits (memory patch)**: additionally raises the
-  engine's caps on simultaneously-live peds/cars (**Max live peds** /
-  **Max live cars**, engine defaults 25/30) for the duration of the flight.
-  More of the world stays alive around you at speed, at some FPS cost.
-  Previous values are saved and restored on despawn, so it coexists with
-  other mods that touch the same limits.
-- **No despawn around the drone** / **No-despawn radius**: the engine
-  normally removes its peds and cars the moment they're off-screen and past
-  a short distance — at drone speed, streets empty out the instant you look
-  away. With this on, everything within the radius of the drone is pinned
-  against removal while you fly; whatever falls behind (or the flight
-  ending) releases it back to normal cleanup.
-
-### Wind
-
-Off by default. When enabled, a steady directional push plus turbulence
-(randomized gust noise) is added to the physics every tick — direction,
-strength, and turbulence amount are all independently adjustable.
-
-### Signal interference (visual only)
-
-A purely cosmetic static/noise effect that gets worse as you fly farther
-from where you're standing — **Clear range** is the distance before any
-static appears at all, **Dead range** is the distance at which it's
-essentially a solid static screen. This is unrelated to the real failsafe
-above (which reacts to actual dropped UDP packets, not distance).
-
-### Flight mode
-
-- **Cycle ACRO/LEVEL/HORIZON**: a keybind and/or a controller button that
-  switches flight mode — see `drone/docs/physics.md` for what each mode
-  actually does; in short, ACRO is raw rate control (full flips allowed),
-  LEVEL self-levels to a target angle, HORIZON blends the two by how far
-  you push the stick.
-- **Toggle 3D throttle**: switches the throttle stick between one-directional
-  (bottom = 0% thrust) and bidirectional (center = 0%, pulling down commands
-  negative/inverted thrust) — lets you hold an upside-down hover instead of
-  just falling when flipped.
-- **LEVEL max angle**: the bank/pitch angle (degrees) you get at full stick
-  deflection in LEVEL mode.
-- **LEVEL/HORIZON gain**: how aggressively the self-leveling controller
-  corrects toward the target angle — higher gain snaps to the target angle
-  faster but can overshoot/oscillate if pushed too high.
-- **HORIZON blend start**: the stick-deflection fraction (0-1) at which
-  HORIZON starts blending away from pure self-leveling toward full ACRO
-  response — lower values reach full-rate control sooner.
-
-### Motor audio
-
-- **Enabled**: turns the motor hum on/off entirely.
-- **Max range**: distance from you at which the motor sound fades to silence.
-- **Max volume (>1 amplifies)**: the loudest the motor sound ever gets.
-  Values above 1.0 amplify the sample beyond its recorded level — useful if
-  the game's own audio buries it (slight distortion at high gain is normal).
-- **Pitch at idle / at full throttle**: the playback-rate range the motor
-  sample is pitched across as you move the throttle — wider gaps make
-  throttle changes sound more dramatic.
-
-## Replay tab
-
-### Capture settings
-
-- **Ring buffer frames**: how many frames of flight the recorder can hold
-  at once — the live "~X MB" estimate below updates as you change this, so
-  you can see the memory cost before committing. Takes effect on your next
-  spawn, not instantly.
-- **Max entities/frame**: how many nearby vehicles/peds/objects get
-  recorded per frame, capped and distance-sorted so the closest ones always
-  win if there are more than this nearby.
-- **Capture radius**: how far from the drone entities get recorded at all.
-
-### Saving
-
-- **Save replay** (keybind): saves the current/most recent flight to disk
-  without opening the menu.
-- **Save current flight** (button): the same save, from the menu.
-
-### Saved flights
-
-A list of every `.drpl` file on disk, each with **Play** and **Delete**
-buttons. If file listing isn't available for some reason, a plain
-"load by filename" text box is shown instead.
-
-### Playback controls (shown while a replay is active)
-
-VLC-style: a scrub bar (drag it to seek instantly), **Play/Pause**, **<<
-5s** / **5s >>** skip buttons, **Restart**, a row of speed presets
-(0.25x-4x), and **Stop playback** to end the session early. The game's own
-in-vehicle camera — including the standard `V` camera-cycle key — works
-normally throughout playback, exactly like it does during a live flight.
+- **Collision & crashes**: collision ray spread (Expert), the crash speed
+  threshold (measured as velocity *into* the surface, not total speed — a
+  fast graze along a wall doesn't count, only a real hit), "Indestructible"
+  rubber mode (crash-grade impacts bounce instead of exploding, with a
+  springiness slider), slide friction and full-stop speed (Expert — how a
+  surviving belly-first impact skids to a stop instead of freezing dead),
+  liftoff throttle (Expert), crash cooldown and wreck-view time (Expert),
+  and auto-respawn after a crash.
+- **Cheat phrases**: the spawn/despawn phrase and the menu phrase itself.

@@ -23,6 +23,13 @@ local DEVICE_STALE_SEC = 3.0
 Receiver.SUBSCRIBE_MAGIC = 'TXSUB'
 Receiver.SUBSCRIBE_INTERVAL_SEC = 1.0
 
+-- Button-bind values at/above this encode an AXIS-switch, not a real
+-- button bit: RC transmitters (EdgeTX) map physical switches to channels
+-- 5-8, which arrive as axes -- the joystick button mask never moves.
+-- Encoding: AXIS_BTN_BASE + (axis-1)*2 + dir, dir 0 = "pressed" when the
+-- axis goes high (>1536), 1 = when it goes low (<512).
+Receiver.AXIS_BTN_BASE = 100
+
 function Receiver:init(cfg)
     self.cfg = cfg
     self.udp = nil
@@ -113,6 +120,7 @@ function Receiver:poll()
     local pkt = effective and latestByDevice[effective]
     if pkt and protocol.seqNewer(pkt.seq, self.lastSeq) then
         self.lastSeq = pkt.seq
+        self.prevAxesRaw = self.axesRaw -- for axis-switch edge detection, see btnJustPressed
         self.axesRaw = pkt.axes
         self.failsafeFlag = (bit.band(pkt.flags, protocol.FLAG_FAILSAFE) ~= 0)
         self.lastRxClock = os.clock()
@@ -124,11 +132,24 @@ function Receiver:poll()
     if not self.connected then self.lastSeq = nil end
 end
 
--- Rising-edge check for a single controller button bit -- true only on the
--- poll where it went from 0 to 1, same "just pressed" semantics as
--- isKeyJustPressed for the keyboard side of these same switches.
+-- Rising-edge check for a controller binding -- true only on the poll
+-- where it fires, same "just pressed" semantics as isKeyJustPressed.
+-- Handles both real button bits and axis-switch encodings (see
+-- AXIS_BTN_BASE above): for an axis-switch, "pressed" = the axis crossing
+-- into its bound extreme zone.
 function Receiver:btnJustPressed(bitIdx)
     if bitIdx < 0 then return false end
+    if bitIdx >= Receiver.AXIS_BTN_BASE then
+        local code = bitIdx - Receiver.AXIS_BTN_BASE
+        local axis = math.floor(code / 2) + 1
+        local cur = self.axesRaw[axis]
+        local prev = self.prevAxesRaw and self.prevAxesRaw[axis]
+        if not cur or not prev then return false end
+        if code % 2 == 0 then
+            return cur > 1536 and prev <= 1536
+        end
+        return cur < 512 and prev >= 512
+    end
     local mask = bit.lshift(1, bitIdx)
     return bit.band(self.buttonsRaw, mask) ~= 0 and bit.band(self.prevButtonsRaw, mask) == 0
 end

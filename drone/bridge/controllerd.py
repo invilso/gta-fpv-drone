@@ -50,7 +50,7 @@ to the legacy uint16 0..2047 space so moonloader's existing cfg.calib
 (min/center/max around 0/1024/2047) keeps working unchanged.
 """
 import argparse
-import ctypes
+import ctypes  # noqa: F401
 import socket
 import struct
 import sys

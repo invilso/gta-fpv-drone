@@ -37,6 +37,7 @@ function OSD:init(cfg)
         profileName = '', profileMass = 0, profileMaxThrust = 0,
         flightElapsed = 0,
         recording = false, replaying = false, replayCount = 0, replayCapacity = 0,
+        recordedSec = 0,
         -- Raw normalized stick position for the stick-position boxes --
         -- see docs/replay.md for why these go through telemetry too (a
         -- replay must show the recorded sticks, not whatever the live
@@ -72,6 +73,17 @@ function OSD:syncLive(drone, receiver, recorder)
     t.replaying = false
     t.replayCount = recorder.count
     t.replayCapacity = recorder.capacity
+    t.recordedSec = recorder:bufferedSeconds()
+    -- Drone HP, 1.0 at full pool down to 0.0 at sp.lua's crash-out
+    -- threshold (350). nil = damage isn't a thing right now (SAMP or
+    -- invulnerable) and the OSD hides its HP element.
+    if not isSampAvailable() and self.cfg.sp_bullet_vulnerable
+        and drone.obj and doesVehicleExist(drone.obj) then
+        t.hp = vecmath.clamp((getCarHealth(drone.obj) - 350)
+            / math.max(1, self.cfg.sp_drone_health - 350), 0, 1)
+    else
+        t.hp = nil
+    end
     local calib, axesRaw = self.cfg.calib, receiver.axesRaw
     t.stickRoll = vecmath.axisBi(calib, axesRaw, self.cfg.axis_roll)
     t.stickPitch = vecmath.axisBi(calib, axesRaw, self.cfg.axis_pitch)
@@ -294,9 +306,52 @@ end
 -- Pre-OSD diagnostic overlay: connection/throttle/vehicle state (spawn
 -- otherwise fails completely silently) plus the live physics-debug numbers
 -- that found the two "won't fall" bugs, see docs/physics.md.
+-- HP readout for the classic style, bottom-right: green -> yellow -> red.
+function OSD:drawHpIndicator()
+    if not self.font then return end
+    local hp = self.telemetry.hp
+    if not hp or self.telemetry.replaying then return end
+    local rx, ry = getScreenResolution()
+    local r = (hp < 0.5) and 255 or math.floor((1 - hp) * 2 * 255)
+    local g = (hp > 0.5) and 255 or math.floor(hp * 2 * 255)
+    local color = 0xFF000000 + r * 0x10000 + g * 0x100 + 0x30
+    renderFontDrawText(self.font, string.format('HP %d%%', math.floor(hp * 100 + 0.5)),
+        rx - 90, ry - 60, color)
+end
+
+-- Same camcorder REC corner the modern OSD has, for the classic style.
+function OSD:drawRecIndicator()
+    if not self.font then return end
+    local t = self.telemetry
+    if not t.recording or t.replaying then return end
+    local rx = getScreenResolution()
+    if math.floor(os.clock() * 2) % 2 == 0 then
+        renderFontDrawText(self.font, 'REC', rx - 180, 22, 0xFFFF4030)
+    end
+    local sec = t.recordedSec or 0
+    renderFontDrawText(self.font, string.format('%d:%02d', math.floor(sec / 60), math.floor(sec % 60)),
+        rx - 146, 22, 0xFFFFFFFF)
+end
+
 function OSD:drawDebugOverlay(drone, cfg, receiver, recorder)
     if not self.font then return end
-    local x, y = 20, 20
+    if not cfg.debug_overlay then
+        -- Spawn-reject and save-status lines stay visible even with debug
+        -- off -- they answer "why did nothing happen", not "how does it fly".
+        local rx, ry = getScreenResolution()
+        if drone.lastSpawnReject and (os.clock() - drone.lastSpawnReject.clock) < 5.0 then
+            renderFontDrawText(self.font, 'spawn rejected: ' .. drone.lastSpawnReject.reason,
+                rx - 420, ry - 160, 0xFFFF6060)
+        end
+        if recorder.lastSave and (os.clock() - recorder.lastSave.clock) < 5.0 then
+            renderFontDrawText(self.font,
+                (recorder.lastSave.ok and 'replay saved: ' or 'replay save failed: ') .. recorder.lastSave.msg,
+                rx - 420, ry - 146, recorder.lastSave.ok and 0xFF60FF60 or 0xFFFF6060)
+        end
+        return
+    end
+    local resX, resY = getScreenResolution()
+    local x, y = resX - 560, resY - 160
     renderFontDrawText(self.font, string.format(
         'DRONE connected=%s throttle=%.0f%% armThresh=%.0f%% inVehicle=%s spawned=%s grounded=%s',
         tostring(receiver.connected), vecmath.axisUni(cfg.calib, receiver.axesRaw, cfg.axis_throttle) * 100, cfg.arm_throttle_max * 100,

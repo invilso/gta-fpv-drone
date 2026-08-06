@@ -24,7 +24,7 @@ format and why two protocols are sent at once.
 3. Launch the game. `moonloader/tx12.lua` (vehicle control) and
    `moonloader/drone.lua` (FPV drone) pick up input independently, each on
    its own port.
-4. In the drone menu (`FPVCONT` → General → Controller) — a live list of
+4. In the drone menu (`CFGD` → Controller) — a live list of
    connected devices, pick one manually if needed; with only one connected
    it's used automatically.
 

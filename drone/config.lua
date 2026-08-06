@@ -105,8 +105,10 @@ local function defaultData()
         cheat_menu = 'CFGD',
         recall_vk = 0x52,        -- 'R'
         recall_btn = -1,         -- controller button bit index, -1 = unbound
-        arm_enabled = true,      -- require throttle-near-zero at spawn before it's allowed to fly
+        arm_enabled = true,      -- require throttle-near-zero at spawn/re-arm before it's allowed to fly
         arm_throttle_max = 0.08,
+        arm_toggle_vk = 0x58,    -- 'X' -- in-flight motor kill / re-arm
+        arm_toggle_btn = -1,
         axis_roll = 1,
         axis_pitch = 2,
         axis_pitch_invert = false, -- empirically backwards for this render mapping
@@ -157,6 +159,14 @@ local function defaultData()
         sp_max_cars = 60,           -- boosted CCarCtrl::MaxNumberOfCarsInUse (engine default 30)
         sp_no_despawn = true,       -- pin peds/cars near the drone against the engine's off-screen removal (see sp.lua)
         sp_keep_radius = 200.0,     -- pin radius around the drone, world units
+        -- Menu (ui.lua):
+        ui_lang = 'en',             -- 'en' | 'ua', see i18n.lua
+        ui_accent = 'pink',         -- theme.lua ACCENTS key
+        ui_expert = false,          -- show expert-only settings
+        ui_icon_style = 'color',    -- dock icon set: 'color' | 'mono' (resources/icons/)
+        osd_style = 'skyline',      -- 'classic' | 'skyline' | 'recon' | 'circuit' -- all but classic drawn by osd2.lua
+        ui_wizard_done = false,     -- first-run setup wizard completed/skipped
+        debug_overlay = false,      -- dev telemetry text block, bottom-right
         -- Wind: off by default. Direction uses the same heading convention as
         -- the rest of the script (0 = +y, 90 = +x). See vecmath.turbulence1D.
         wind_enabled = false,
@@ -235,6 +245,10 @@ function Config:load()
         deepMerge(self.data, parsed)
         if not self.data.profiles[self.data.active_profile] then self.data.active_profile = 'default' end
         self.data.profile = self.data.profiles[self.data.active_profile]
+        -- OSD styles carry their own (non-branded) names; map configs
+        -- saved under the earlier working values.
+        local osdStyleMap = {legacy = 'classic', dji = 'skyline', mil = 'recon'}
+        self.data.osd_style = osdStyleMap[self.data.osd_style] or self.data.osd_style
     end
 end
 

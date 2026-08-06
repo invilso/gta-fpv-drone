@@ -29,8 +29,10 @@ local camera = require 'camera'
 local Recorder = require 'replay.recorder'
 local Player = require 'replay.player'
 local OSD = require 'osd'
+local OSD2 = require 'osd2'
 local SPExtras = require 'sp'
 local UI = require 'ui'
+local updateCheck = require 'update_check'
 local font = require 'font'
 local vecmath = require 'vecmath'
 
@@ -51,6 +53,7 @@ local player = Player.new()
 local osd = OSD.new(cfg)
 local sp = SPExtras.new(cfg)
 local ui = UI.new(configObj, drone, receiver, recorder, player)
+local osd2 = OSD2.new(cfg, osd, drone, player) -- draws itself via its own imgui frame
 
 local autoRespawnPending = false
 
@@ -66,6 +69,7 @@ end
 function main()
     receiver:open()
     font.ensure()
+    updateCheck.check()
     audio:load()
     osd:createFont()
 
@@ -78,7 +82,7 @@ function main()
 
         local pendingName = ui:consumePendingPlayback()
         if pendingName then player:start(pendingName, drone) end
-        if ui:consumeDespawnRequest() then despawnAll() end
+        if ui:consumeStopRequest() then despawnAll() end
 
         -- Not gated on drone.spawned: saving "the last flight" is meant to
         -- work right after it ends too, while the recorder still holds it.
@@ -119,6 +123,14 @@ function main()
         lastTick = now
 
         if player:isActive() then
+            -- Video-player hotkeys, active for the whole replay session.
+            if isKeyJustPressed(0x20) then player.paused = not player.paused end -- space
+            if isKeyJustPressed(0x25) then player:seek(player.playbackTime - 5) end -- left
+            if isKeyJustPressed(0x27) then player:seek(player.playbackTime + 5) end -- right
+            if isKeyJustPressed(0x26) then player.speed = math.min(4, player.speed * 2) end -- up
+            if isKeyJustPressed(0x28) then player.speed = math.max(0.25, player.speed / 2) end -- down
+            if isKeyJustPressed(0xBC) then player.paused = true; player:seek(player.playbackTime - 1 / 30) end -- ,
+            if isKeyJustPressed(0xBE) then player.paused = true; player:seek(player.playbackTime + 1 / 30) end -- .
             if not isPauseMenuActive() then
                 player:tick(dt, drone, camera, osd)
             end
@@ -126,13 +138,33 @@ function main()
             if isKeyJustPressed(cfg.recall_vk) or receiver:btnJustPressed(cfg.recall_btn) then
                 drone:recall()
             end
+            -- ARM/DISARM: motor kill switch, like a real quad. Disarm cuts
+            -- motors instantly (it falls, keeping its tumble); re-arm goes
+            -- through the same throttle-at-idle gate as spawning.
+            if (cfg.arm_toggle_vk > 0 and isKeyJustPressed(cfg.arm_toggle_vk))
+                or receiver:btnJustPressed(cfg.arm_toggle_btn) then
+                if drone.armed then
+                    drone.armed = false
+                    drone.thrust = 0
+                    drone.audio:stop()
+                else
+                    local thr = vecmath.axisUni(cfg.calib, receiver.axesRaw, cfg.axis_throttle)
+                    if not cfg.arm_enabled or thr <= cfg.arm_throttle_max then
+                        drone.armed = true
+                        drone.audio:start()
+                    end
+                end
+            end
             if isKeyJustPressed(0x46) then -- 'F', see collision.lua's STICK_CANDIDATES
                 drone.stickCandidateIndex = (drone.stickCandidateIndex % #Drone.STICK_CANDIDATES) + 1
             end
             if isKeyJustPressed(0xBD) then cfg.profile.model_scale = vecmath.clamp(cfg.profile.model_scale - 0.1, 0.01, 2.0) end -- '-'
             if isKeyJustPressed(0xBB) then cfg.profile.model_scale = vecmath.clamp(cfg.profile.model_scale + 0.1, 0.01, 2.0) end -- '='
-            if isKeyJustPressed(0x26) then cfg.cam_tilt_deg = vecmath.clamp(cfg.cam_tilt_deg + 1.0, -45, 45) end -- Up arrow
-            if isKeyJustPressed(0x28) then cfg.cam_tilt_deg = vecmath.clamp(cfg.cam_tilt_deg - 1.0, -45, 45) end -- Down arrow
+            -- Held, not just-pressed: the tilt glides at a smooth per-second
+            -- rate in sub-degree steps instead of 1-degree clicks.
+            local TILT_RATE = 25.0 -- deg/s
+            if isKeyDown(0x26) then cfg.cam_tilt_deg = vecmath.clamp(cfg.cam_tilt_deg + TILT_RATE * dt, -45, 45) end -- Up arrow
+            if isKeyDown(0x28) then cfg.cam_tilt_deg = vecmath.clamp(cfg.cam_tilt_deg - TILT_RATE * dt, -45, 45) end -- Down arrow
 
             -- Flight mode / 3D-throttle switches: keyboard key OR controller
             -- button, whichever fires first -- both configurable in the menu.
@@ -165,7 +197,8 @@ function main()
                     -- Resting after a soft landing: hold position/orientation,
                     -- ignore stick input, until enough throttle is applied
                     -- to take off again.
-                    if receiver.connected and vecmath.axisUni(cfg.calib, receiver.axesRaw, cfg.axis_throttle) > cfg.liftoff_throttle_min then
+                    if receiver.connected and drone.armed
+                        and vecmath.axisUni(cfg.calib, receiver.axesRaw, cfg.axis_throttle) > cfg.liftoff_throttle_min then
                         drone.grounded = false
                     end
                     drone:applyTransform()
@@ -284,7 +317,11 @@ end
 function onD3DPresent()
     osd:drawDebugOverlay(drone, cfg, receiver, recorder)
     if drone.spawned then
-        osd:draw(drone)
+        if cfg.osd_style == 'classic' then -- the other styles draw via osd2's imgui frame
+            osd:draw(drone)
+            osd:drawRecIndicator()
+            osd:drawHpIndicator()
+        end
         osd:drawSignalInterference(drone)
     end
 end

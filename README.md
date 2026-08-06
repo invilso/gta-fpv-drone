@@ -17,9 +17,14 @@ DualSense, Xbox pad, generic joystick). Works in both singleplayer and SA-MP.
   + nearby vehicles/peds/objects) to a fixed-memory ring buffer, save to
   disk, and play it back with speed control, scrubbing, and the game's own
   in-vehicle camera (including the `V` camera cycle).
-- **Liftoff-style OSD**: horizon line + attitude indicator, thrust
-  breakdown, vertical-speed vario, signal-strength static effect, profile +
-  flight timer.
+- **Four OSD styles**: Classic (text readout), Skyline (clean white HD
+  horizon + tapes), Recon (mono-green analog-camera look), Circuit
+  (race-sim grid/crosshair/boxed readouts) — plus a color-coded drone HP
+  indicator, signal-strength static effect, and flight timer.
+- **A settings menu built for it**: glass window, macOS-style dock
+  navigation, drone-status bar, live settings search, first-run setup
+  wizard (controller detection, calibration, graphical deadzone tuning),
+  and profile cards you can duplicate/rename/share as plain text.
 - **Motor audio** with live pitch/volume from throttle and distance.
 - **Any controller** — RC transmitters and modern gamepads alike, selected
   live from the in-game menu; plug in more than one and switch anytime.
@@ -58,6 +63,7 @@ automatically on first run) whenever you want to fly. See
 |---|---|
 | Spawn/despawn drone | type `DRONE` |
 | Open settings menu | type `CFGD` |
+| Arm/disarm motors | `X` |
 | Recall (teleport back to you) | `R` |
 | Cycle ACRO/LEVEL/HORIZON | `M` |
 | Toggle 3D throttle | `N` |
@@ -94,6 +100,12 @@ at startup, the bundled Inter.ttf is planted under that path (mimgui loads
 whatever bytes live there), so every imgui-based script in the game starts
 normally. Installing real corefonts (`winetricks corefonts`) also works if
 you prefer the authentic font.
+
+**Update notices**: on startup the script checks `drone/VERSION` (the
+commit hash it was released at) against the same file on GitHub's `main`
+branch, and shows a small dismissible banner in the settings menu if a
+newer commit exists. No auto-update, no telemetry beyond that one file
+fetch, silently does nothing if you're offline.
 
 ## How it's built
 
