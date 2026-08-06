@@ -1,11 +1,9 @@
-# GTA FPV Drone
+![GTA FPV Drone — settings menu and the Circuit OSD style](screenshots/hero.png)
 
 A fully scripted FPV drone for GTA San Andreas (MoonLoader) — spawn a
 quadcopter, freeze your character in place, and fly it FPV-style with real
 flight physics, flown from **any connected controller** (RC transmitter,
 DualSense, Xbox pad, generic joystick). Works in both singleplayer and SA-MP.
-
-![The settings menu and the Circuit OSD style, side by side](screenshots/hero.png)
 
 ## Features
 
