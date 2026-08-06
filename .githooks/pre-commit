@@ -1,0 +1,15 @@
+#!/bin/sh
+# Keeps drone/VERSION pointed at a real commit hash with zero manual steps.
+#
+# A commit can't contain its own hash (the hash is computed FROM the
+# commit's contents), so this stamps the hash HEAD points to right NOW --
+# i.e. the previous commit -- before the new one is created. Every commit
+# is therefore one commit behind the tip, which is irrelevant for
+# update_check.lua's purpose (a "you're behind, go update" courtesy
+# notice, not exact version tracking).
+#
+# Enabled repo-wide via: git config core.hooksPath .githooks
+
+prev=$(git rev-parse --short HEAD 2>/dev/null) || prev="0000000"
+echo "$prev" > drone/VERSION
+git add drone/VERSION
