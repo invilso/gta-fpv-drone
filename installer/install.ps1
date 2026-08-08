@@ -18,7 +18,8 @@ Say ""
 
 # --- 1. GTA SA path -------------------------------------------------------
 $GtaPath = Read-Host "Path to your GTA San Andreas folder"
-$GtaPath = $GtaPath.TrimEnd('\')
+# Explorer's "Copy as path" wraps the path in quotes -- strip them.
+$GtaPath = $GtaPath.Trim().Trim('"').TrimEnd('\')
 
 if (-not (Test-Path $GtaPath -PathType Container)) {
     Err "That folder doesn't exist: $GtaPath"
@@ -28,7 +29,9 @@ if (-not (Test-Path (Join-Path $GtaPath "gta_sa.exe"))) {
     Warn "Warning: no gta_sa.exe found there -- are you sure this is the right folder?"
 }
 if (-not (Test-Path (Join-Path $GtaPath "moonloader") -PathType Container)) {
-    Err "No moonloader\ folder found in $GtaPath -- install MoonLoader first (see below), then re-run this installer."
+    Err "No moonloader\ folder found in $GtaPath -- install MoonLoader first (https://blast.hk/moonloader/), then re-run this installer."
+    Read-Host "Press Enter to exit"
+    exit 1
 }
 
 # --- 2. Dependency check, all at once --------------------------------------
@@ -72,7 +75,17 @@ if ([string]::IsNullOrWhiteSpace($Mode)) { $Mode = "copy" }
 $DestLua = Join-Path $GtaPath "moonloader\drone.lua"
 $DestDir = Join-Path $GtaPath "moonloader\drone"
 
-if (Test-Path $DestDir) { Remove-Item $DestDir -Recurse -Force }
+if (Test-Path $DestDir) {
+    $Existing = Get-Item $DestDir -Force
+    if ($Existing.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+        # A junction from a previous 'link' install: delete only the link
+        # itself -- Remove-Item -Recurse would follow it and wipe the
+        # repo's drone/ folder.
+        $Existing.Delete()
+    } else {
+        Remove-Item $DestDir -Recurse -Force
+    }
+}
 Copy-Item (Join-Path $RepoDir "drone.lua") $DestLua -Force
 
 if ($Mode -eq "link") {
@@ -131,7 +144,9 @@ $AutoStart = Read-Host "Set it up to start automatically when you log in? [y/N]"
 if ($AutoStart -eq "y" -or $AutoStart -eq "Y") {
     $StartupDir = [Environment]::GetFolderPath("Startup")
     $BatPath = Join-Path $StartupDir "gta-fpv-drone-bridge.bat"
-    "@echo off`r`nstart `"`" uv run `"$BridgePy`"" | Out-File -FilePath $BatPath -Encoding ascii
+    # OEM encoding: cmd.exe reads .bat files in the OEM codepage, so paths
+    # with non-ASCII characters (e.g. a Cyrillic user name) survive intact.
+    "@echo off`r`nstart `"`" uv run `"$BridgePy`"" | Out-File -FilePath $BatPath -Encoding oem
     Ok "Created $BatPath -- the bridge will start next time you log in."
     Say "To start it right now too:"
     Say "  $RunCmd"
@@ -145,3 +160,4 @@ Say "=== Done ==="
 Say "Installed to: $DestLua and $DestDir"
 Say "Manual bridge command: $RunCmd"
 Say "In-game: type DRONE to spawn (throttle near zero to arm), CFGD for settings. See README.md for default keybinds."
+Read-Host "Press Enter to exit"

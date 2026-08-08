@@ -20,6 +20,8 @@ say ""
 
 # --- 1. GTA SA path -----------------------------------------------------
 read -rp "Path to your GTA San Andreas folder: " GTA_PATH
+# read doesn't do tilde expansion -- handle a leading ~/ ourselves.
+GTA_PATH="${GTA_PATH/#\~/$HOME}"
 GTA_PATH="${GTA_PATH%/}"
 
 if [ ! -d "$GTA_PATH" ]; then
@@ -30,7 +32,8 @@ if [ ! -e "$GTA_PATH/gta_sa.exe" ]; then
     warn "Warning: no gta_sa.exe found there -- are you sure this is the right folder?"
 fi
 if [ ! -d "$GTA_PATH/moonloader" ]; then
-    err "No moonloader/ folder found in $GTA_PATH -- install MoonLoader first (see below), then re-run this installer."
+    err "No moonloader/ folder found in $GTA_PATH -- install MoonLoader first (https://blast.hk/moonloader/), then re-run this installer."
+    exit 1
 fi
 
 # --- 2. Dependency check, all at once ------------------------------------
@@ -131,7 +134,10 @@ if [ "$AUTOSTART" = "y" ] || [ "$AUTOSTART" = "Y" ]; then
     UNIT_DIR="$HOME/.config/systemd/user"
     mkdir -p "$UNIT_DIR"
     UV_BIN="$(command -v uv)"
-    sed "s#ExecStart=.*#ExecStart=$UV_BIN run $BRIDGE_PY#" "$DEST_DIR/bridge/controllerd.service" > "$UNIT_DIR/controllerd.service"
+    # Quote the script path in ExecStart -- GTA installs commonly live in
+    # folders with spaces ("GTA San Andreas"), and systemd would otherwise
+    # split the path into separate arguments.
+    sed "s#ExecStart=.*#ExecStart=$UV_BIN run \"$BRIDGE_PY\"#" "$DEST_DIR/bridge/controllerd.service" > "$UNIT_DIR/controllerd.service"
     systemctl --user daemon-reload
     systemctl --user enable --now controllerd.service
     ok "Installed and started controllerd.service (systemctl --user status controllerd)"
