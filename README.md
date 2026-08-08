@@ -111,6 +111,22 @@ branch, and shows a small dismissible banner in the settings menu if a
 newer commit exists. No auto-update, no telemetry beyond that one file
 fetch, silently does nothing if you're offline.
 
+## Roadmap
+
+Planned, in this order:
+
+- **ArduPilot SITL backend** — the mod acts as the flight dynamics model
+  for a real ArduPilot instance over SITL's JSON interface: actual
+  autopilot modes (Loiter, RTL, Auto), Mission Planner / QGroundControl
+  waypoint missions flown over San Andreas, failsafe behavior you can
+  trigger for free. San Andreas gets pinned to fake GPS coordinates for
+  this, which is its own kind of fun.
+- **PX4 HITL** — the same sensor pipeline feeding a physical flight
+  controller over MAVLink (`HIL_SENSOR` / `HIL_ACTUATOR_CONTROLS`): a
+  real Pixhawk on the desk, armed with a real switch, flying the drone
+  in-game. (Betaflight has no supported external-FDM path, so no plans
+  there.)
+
 ## How it's built
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for a system-level overview, and
