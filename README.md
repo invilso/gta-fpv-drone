@@ -130,6 +130,13 @@ Planned, in this order:
   interesting of the two here (missions/RTH on top of an FPV stack).
   Hardware-in-the-loop for these exists only as community forks, so
   that part is a maybe.
+- **Autonomy scripting API** — a per-tick hook exposing drone + world
+  state and taking control outputs, so anyone can script autonomous
+  behaviors without touching the core: follow/track a target, waypoint
+  navigation, or computer-vision experiments driven over the existing
+  UDP bridge (feed frames to your own Python/ML process, fly on its
+  output). The mod stays a generic sandbox -- what the brain does is up
+  to whoever writes it.
 
 ## How it's built
 
