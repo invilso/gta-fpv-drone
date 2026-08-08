@@ -124,8 +124,12 @@ Planned, in this order:
 - **PX4 HITL** — the same sensor pipeline feeding a physical flight
   controller over MAVLink (`HIL_SENSOR` / `HIL_ACTUATOR_CONTROLS`): a
   real Pixhawk on the desk, armed with a real switch, flying the drone
-  in-game. (Betaflight has no supported external-FDM path, so no plans
-  there.)
+  in-game.
+- **Betaflight/INAV SITL** — both ship a SITL target with a UDP
+  flight-dynamics interface, so the same idea applies; INAV is the more
+  interesting of the two here (missions/RTH on top of an FPV stack).
+  Hardware-in-the-loop for these exists only as community forks, so
+  that part is a maybe.
 
 ## How it's built
 
