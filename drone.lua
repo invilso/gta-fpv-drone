@@ -122,6 +122,8 @@ function main()
         local dt = vecmath.clamp(now - lastTick, 0, 0.1) -- clamp to avoid a huge step after a hitch/pause
         lastTick = now
 
+        drone:tickFuses() -- scripted car detonations burn down across respawns
+
         if player:isActive() then
             -- Video-player hotkeys, active for the whole replay session.
             if isKeyJustPressed(0x20) then player.paused = not player.paused end -- space

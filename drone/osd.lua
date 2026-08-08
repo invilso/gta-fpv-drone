@@ -231,6 +231,7 @@ function OSD:draw(drone)
     renderFontDrawText(self.font, string.format('SPD %.0f', speed), cx - 220, resY - 68, 0xFFFFFFFF)
     renderFontDrawText(self.font, string.format('ALT %.0f', altitude), cx - 220, resY - 54, 0xFFFFFFFF)
     renderFontDrawText(self.font, string.format('DIST %.0f', dist), cx + 150, resY - 54, 0xFFFFFFFF)
+    renderFontDrawText(self.font, string.format('CAM %.0f', self.cfg.cam_tilt_deg), cx + 150, resY - 68, 0xFFFFFFFF)
 
     renderFontDrawText(self.font, t.grounded and 'LANDED' or (t.armed and 'ARMED' or 'DISARMED'),
         cx - 220, resY - 40, t.grounded and 0xFFFFD040 or (t.armed and 0xFF40E050 or 0xFFE04040))

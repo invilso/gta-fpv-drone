@@ -14,6 +14,20 @@ SAMemory.require('CVehicle')
 
 local Drone = Class('Drone')
 
+-- setCharCoordinates/warp opcodes place peds with a z convention that does
+-- not match getCharCoordinates (ped centre vs feet -- off by the model's
+-- ~1 m half-height, which reads as the ped popping into the air on every
+-- placement). Instead of hardcoding the offset: place, read back, and
+-- re-place once with the measured delta -- exact under either convention.
+local function placeCharExactly(char, x, y, z)
+    setCharCoordinates(char, x, y, z)
+    local ax, ay, az = getCharCoordinates(char)
+    if math.abs(az - z) > 0.05 then
+        setCharCoordinates(char, x, y, z - (az - z))
+    end
+end
+Drone.placeCharExactly = placeCharExactly -- replay/player.lua places its decoy the same way
+
 -- RCCAM (594, lib/game/models.lua) is mislabeled -- spawns a plant pot, not
 -- an RC vehicle. RCRAIDER, a small RC helicopter, is the closest vanilla
 -- silhouette to an FPV quad. See docs/dead-ends.md.
@@ -27,6 +41,7 @@ function Drone:init(cfg, audio)
     self.armed = false
     self.obj = nil
     self.decoyPed = nil     -- stand-in ped left at the launch point, see :spawn()
+    self.launchPos = nil    -- player's exact coords at spawn time -- despawn warps back to these
     self.launchHeading = 0
     self.prevCamMode = 0
     self.grounded = false   -- resting after a soft belly landing, see collision.lua
@@ -46,6 +61,7 @@ function Drone:init(cfg, audio)
 
     self.lastCrashClock = -1000
     self.crashWatchUntil = nil
+    self.pendingFuses = {}  -- {car, at} -- scripted car detonations, see collision.lua
     self.lastCollisionKind = 'none' -- 'none' | 'belly' | 'slide' | 'bounce' | 'crash'
     self.collisionHitCount, self.collisionHitsPerSec, self.collisionCountWindowStart = 0, 0, 0
     self.stickCandidateIndex = 1 -- see collision.lua's debug cycler
@@ -129,6 +145,7 @@ function Drone:spawn(receiver, recorder, playerActive)
     self:resetOrientationFromHeading(heading)
     self.spawned = true
     self.armed = true -- arm gate (if enabled) was already checked above
+    self.launchPos = {x = px, y = py, z = pz}
     self.launchHeading = heading
     self.flightStartClock = os.clock()
     self.audio:start()
@@ -144,19 +161,20 @@ function Drone:spawn(receiver, recorder, playerActive)
     -- "camera roll" for why. A decoy ped, immune and non-colliding, is left
     -- standing at the launch point in the player's place.
     local pedModel = getCharModel(PLAYER_PED)
-    local decoy = createChar(4, pedModel, px, py, pz)
-    -- createChar's z convention differs from getCharCoordinates' (ground
-    -- level vs. ped center) -- created directly at the raw get value the
-    -- decoy ends up ~1 m above where the player stood, and since despawn
-    -- warps the player back to the decoy's coordinates, every
-    -- spawn/despawn cycle ratchets the player upward by that meter (in
-    -- SAMP, accumulated airborne teleports read as a fly-hack).
-    -- setCharCoordinates uses the same convention as getCharCoordinates,
-    -- so re-placing through it lands the decoy exactly on the spot.
-    setCharCoordinates(decoy, px, py, pz)
-    setCharHeading(decoy, heading)
+    -- Created 1.5 m behind the player, NOT on their exact spot: two solid
+    -- peds overlapping for even a frame makes the engine's overlap
+    -- resolution shove the player upward (the tossed-into-the-air-on-spawn
+    -- bug). Only after its collision is off does the decoy move onto the
+    -- player's actual position.
+    local decoy = createChar(4, pedModel, px - fwdX * 1.5, py - fwdY * 1.5, pz)
     setCharProofs(decoy, true, true, true, true, true)
     setCharCollision(decoy, false)
+    -- Despawn warps the player back to the decoy's coordinates, so any
+    -- placement error here would ratchet the player's position every
+    -- spawn/despawn cycle (in SAMP, accumulated airborne teleports read
+    -- as a fly-hack).
+    placeCharExactly(decoy, px, py, pz)
+    setCharHeading(decoy, heading)
     self.decoyPed = decoy
 
     warpCharIntoCar(PLAYER_PED, obj)
@@ -175,11 +193,16 @@ end
 function Drone:despawn()
     if not self.spawned then return end
 
-    local dx, dy, dz = self.pos.x, self.pos.y, self.pos.z
-    if self.decoyPed and doesCharExist(self.decoyPed) then
-        dx, dy, dz = getCharCoordinates(self.decoyPed)
-    end
+    -- The player returns to their own coords as read at spawn time -- the
+    -- ground truth, untouched by any placement opcode's z convention. Going
+    -- through the decoy's coordinates instead would inherit whatever error
+    -- its own placement introduced, compounding per spawn/despawn cycle
+    -- under auto-respawn.
+    local dx, dy, dz = self.launchPos.x, self.launchPos.y, self.launchPos.z
     warpCharFromCarToCoord(PLAYER_PED, dx, dy, dz)
+    -- ...and the warp's own placement convention still applies to this very
+    -- call, so re-pin with the measured delta.
+    placeCharExactly(PLAYER_PED, dx, dy, dz)
     setCharHeading(PLAYER_PED, self.launchHeading)
     setCharVisible(PLAYER_PED, true)
     setPlayerInCarCameraMode(self.prevCamMode)

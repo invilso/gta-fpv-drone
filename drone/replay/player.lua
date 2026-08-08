@@ -68,11 +68,16 @@ function Player:start(name, drone)
     local heading = getCharHeading(PLAYER_PED)
 
     local pedModel = getCharModel(PLAYER_PED)
-    local decoy = createChar(4, pedModel, px, py, pz)
-    setCharHeading(decoy, heading)
+    -- Same decoy discipline as Drone:spawn(): create beside the player (a
+    -- solid-ped overlap shoves the player upward), disable collision, then
+    -- measured-delta place onto their exact spot.
+    local decoy = createChar(4, pedModel, px + 1.5, py, pz)
     setCharProofs(decoy, true, true, true, true, true)
     setCharCollision(decoy, false)
+    Drone.placeCharExactly(decoy, px, py, pz)
+    setCharHeading(decoy, heading)
     drone.decoyPed = decoy
+    drone.launchPos = {x = px, y = py, z = pz} -- despawn warps the player back to these
     drone.launchHeading = heading
 
     local obj = Drone.createFrozenVehicle(first.px, first.py, first.pz)

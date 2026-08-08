@@ -188,6 +188,9 @@ function OSD2:homeAndTimer(dl, pal, t, d, cx, dh)
     -- mode + profile, left of timer
     dl:AddText(imgui.ImVec2(cx - 170, y), pal.dim,
         (t.flightMode or '') .. (t.throttle3d and ' 3D' or '') .. '  ' .. (t.profileName or ''))
+    -- camera uptilt, right of the home arrow/distance
+    dl:AddText(imgui.ImVec2(cx + 130, y), pal.dim,
+        string.format('CAM %.0f\194\176', self.cfg.cam_tilt_deg))
 end
 
 function OSD2:sticks(dl, pal, t, dw, dh)
